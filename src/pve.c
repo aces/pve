@@ -327,7 +327,7 @@ int main(int argc, char** argv)
   iteration = 1;   /* Start the iterative algorithm */
   changed = TRUE;
   changed_num = 0;
-  changed_num_last = 0;
+  changed_num_last = -1;
 
   while(changed && (iteration < num_iterations)) {
     printf("Iteration %d \n",iteration);
@@ -442,7 +442,7 @@ int main(int argc, char** argv)
     
     if (use_steady_state) {
 
-      if (changed_num >= changed_num_last)
+      if ((changed_num_last > -1)&&(changed_num >= changed_num_last))
 	changed = FALSE;
       else 
 	changed_num_last = changed_num;
