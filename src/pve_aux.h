@@ -59,13 +59,7 @@
 
 /* Look up table for Potts model: Tells which classes are similar. Look at the macro 
 Are_similar to figure out how this works. */
-const char POTTS_LOOKUP_TABLE[CLASSES + 1][CLASSES + 1] = {{0, 0, 0, 0, 0, 0, 1},
-                                                           {0, 0, 0, 0, 1, 0, 1},
-                                                           {0, 0, 0, 0, 1, 1, 0},
-                                                           {0, 0, 0, 0, 0, 1, 0},
-                                                           {0, 1, 1, 0, 0, 0, 0},
-                                                           {0 ,0, 1, 1, 0, 0, 0},
-                                                           {1, 1, 0, 0, 0, 0, 0}};
+extern const char POTTS_LOOKUP_TABLE[CLASSES + 1][CLASSES + 1];
 
 /* Some macros for convinience */
 

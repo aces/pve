@@ -251,8 +251,8 @@ int Estimate_ml3(Volume volume_inT1, Volume volume_inT2,Volume volume_inPD,
   double* samples = NULL;
   long int nofsamples;
   long int i,j;  
-  Vector standardized_sample;
-  Matrix tmpcov;
+  Vector3D standardized_sample;
+  Matrix3D tmpcov;
 
   samples = Collect_values3(volume_inT1,volume_inT2,volume_inPD,
                             volume_mask,volume_seg,ref_label,&nofsamples);
@@ -457,8 +457,8 @@ int Estimate_params_from_tags3(char* tag_filename,Volume volume_inT1, Volume vol
    double wx,wy,wz;
    double v1,v2,v3;
    int sizes[MAX_DIMENSIONS];   
-   Vector value;
-   Matrix tmp_matrix;
+   Vector3D value;
+   Matrix3D tmp_matrix;
 
    get_volume_sizes( volume_inT1, sizes ); 
 
@@ -690,8 +690,8 @@ double Compute_Gaussian_likelihood3(pVector value, pVector mean , pMatrix var)
 
 { 
   double d,exponent;
-  Matrix invvar;
-  Vector v;
+  Matrix3D invvar;
+  Vector3D v;
 
   d = Determinant(var);
   Invert(var,invvar);
@@ -725,10 +725,10 @@ double Compute_marginalized_likelihood3(pVector value, pVector mean1 , pVector m
 { 
   double lh, t, interval_len;
   int i;  
-  Vector tmean;
-  Matrix tvar;  
-  Vector tmpv1,tmpv2;
-  Matrix tmpm1,tmpm2,tmpm3;
+  Vector3D tmean;
+  Matrix3D tvar;  
+  Vector3D tmpv1,tmpv2;
+  Matrix3D tmpm1,tmpm2,tmpm3;
 
   interval_len = (double) 1 / nof_intervals;
   lh = 0;
@@ -832,11 +832,11 @@ void Parameter_estimation3(Volume volume_inT1,Volume volume_inT2,Volume volume_i
   int i,j,k,sizes[MAX_DIMENSIONS];
   char c;
   double total_probability;
-  int adapt_var_measurement = 0;
-  Vector tmpvec, intensity;
-  Matrix tmpmatrix;
-  BOOLEAN posdef;
-  Matrix oldvar[3];
+  /* int adapt_var_measurement = 0; */
+  Vector3D tmpvec, intensity;
+  Matrix3D tmpmatrix;
+  /* BOOLEAN posdef; */
+  Matrix3D oldvar[3];
 
   printf("WM mean");
   PrintVector(mean[WMLABEL]);
@@ -987,10 +987,10 @@ int Compute_partial_volume_vectors3(Volume volume_inT1, Volume volume_inT2,
   int i,j,k;
   char c;
   double t;  /* mixing proportion to be estimated */
-  Vector value;
-  Vector diff1,diff2;
-  Matrix var_tmp;
-  Matrix inv_var_wmgm,inv_var_gmcsf,inv_var_csfbg;
+  Vector3D value;
+  Vector3D diff1,diff2;
+  Matrix3D var_tmp;
+  Matrix3D inv_var_wmgm,inv_var_gmcsf,inv_var_csfbg;
 
   get_volume_sizes(volume_inT1,sizes);
    
@@ -1102,12 +1102,12 @@ int Compute_partial_volume_vectors3_ml(Volume volume_inT1, Volume volume_inT2,
   char c;
   double t;  /* mixing proportion to be estimated */
   double prob;
-  Vector value;
-  Vector mean_tmp1,mean_tmp2;
+  Vector3D value;
+  Vector3D mean_tmp1,mean_tmp2;
   double maxvalue = - 1.0;
   int maxindex = 0;
 
-  Matrix var_tmp1,var_tmp2;
+  Matrix3D var_tmp1,var_tmp2;
 
   get_volume_sizes(volume_inT1,sizes);
    

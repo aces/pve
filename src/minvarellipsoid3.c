@@ -1,3 +1,4 @@
+#include "matrix3.h"
 #include "minvarellipsoid3.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -23,8 +24,8 @@ int minvarellipsoid3(double data[], long int n, int trials,
 {
   int i,j,k,random_index[4];
   double score,best_score;
-  Vector sample_mean, standardized_data;
-  Matrix sample_var,inv_sample_var,tmpmatrix;
+  Vector3D sample_mean, standardized_data;
+  Matrix3D sample_var,inv_sample_var,tmpmatrix;
   double median_scale;
   double best_median_scale;
   double* scaled_data;
@@ -79,54 +80,4 @@ int minvarellipsoid3(double data[], long int n, int trials,
   free(scaled_data);
   return(0);    
 }
-
-/*
- * Algorithm from N. Wirth's book, implementation by N. Devillard.
- * This code in public domain.
- */
-
-/*---------------------------------------------------------------------------
-   Function :   kth_smallest()
-   In       :   array of elements, # of elements in the array, rank k
-   Out      :   one element
-   Job      :   find the kth smallest element in the array
-   Notice   :   use the median() macro defined below to get the median. 
-
-                Reference:
-
-                  Author: Wirth, Niklaus 
-                   Title: Algorithms + data structures = programs 
-               Publisher: Englewood Cliffs: Prentice-Hall, 1976 
-    Physical description: 366 p. 
-                  Series: Prentice-Hall Series in Automatic Computation 
-
- ---------------------------------------------------------------------------*/
-
-
-elem_type kth_smallest(elem_type a[], long int n, long int k)
-{
-    long int i,j,l,m ;
-    elem_type x ;
-
-    l=0 ; m=n-1 ;
-    while (l<m) {
-        x=a[k] ;
-        i=l ;
-        j=m ;
-        do {
-            while (a[i]<x) i++ ;
-            while (x<a[j]) j-- ;
-            if (i<=j) {
-                ELEM_SWAP(a[i],a[j]) ;
-                i++ ; j-- ;
-            }
-        } while (i<=j) ;
-        if (j<k) l=i ;
-        if (k<i) m=j ;
-    }
-    return a[k] ;
-}
-
-
-
 

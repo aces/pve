@@ -50,7 +50,10 @@ int main(int argc, char** argv)
   double mean[PURE_CLASSES + 1]; /*   nuisance parameters */
   double var[PURE_CLASSES + 1]; 
   double var_measurement;                    /* measurent noise */
-  double pr_wm,pr_gm,pr_csf,pr_wmgm,pr_gmcsf,pr_csfbg, pr_prior; /* For later use */
+  double pr_prior;
+#if defined(NOT_IMPL)
+  double pr_wm,pr_gm,pr_csf,pr_wmgm,pr_gmcsf,pr_csfbg; /* For later use */
+#endif /* NOT_IMPL defined */
   double beta = 0.1;
 
   double  slice_width[MAX_DIMENSIONS];
@@ -77,13 +80,14 @@ int main(int argc, char** argv)
 
 
   /* Intialize nuisance parameters */
-
+#if defined(NOT_IMPL)
   pr_wm = 0.16667;      /* All tissue types are equally likely */
   pr_gm = 0.16667;
   pr_csf = 0.16667;
   pr_wmgm = 0.16667;
   pr_gmcsf = 0.16667;
   pr_csfbg = 0.16667;
+#endif /* NOT_IMPL defined */
   pr_prior = 0;
 
   if(argc < 2) {
@@ -402,7 +406,11 @@ int main(int argc, char** argv)
   return(0);
 }
 
-
-
-
-
+/* Moved here to avoid multiple definitions */
+const char POTTS_LOOKUP_TABLE[CLASSES + 1][CLASSES + 1] = {{0, 0, 0, 0, 0, 0, 1},
+                                                           {0, 0, 0, 0, 1, 0, 1},
+                                                           {0, 0, 0, 0, 1, 1, 0},
+                                                           {0, 0, 0, 0, 0, 1, 0},
+                                                           {0, 1, 1, 0, 0, 0, 0},
+                                                           {0 ,0, 1, 1, 0, 0, 0},
+                                                           {1, 1, 0, 0, 0, 0, 0}};

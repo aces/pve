@@ -1,11 +1,14 @@
+#ifndef _PVE_MATRIX3_H_
+#define _PVE_MATRIX3_H_ 1
+
 /* Some basic routines for 3x3 matrices for dealing 
    with  multinormal distributions */
 #include <math.h>
 
 #define VERY_SMALL 1E-16
 
-typedef double  Matrix[9];
-typedef double  Vector[3] ;
+typedef double  Matrix3D[9];
+typedef double  Vector3D[3] ;
 typedef double* pMatrix;
 typedef double* pVector;
 
@@ -40,4 +43,4 @@ double Determinant2x2(double m11, double m12, double m21, double m22);
 double Determinant(pMatrix pm);
 int Invert(pMatrix pm, pMatrix pinvm);
 
-
+#endif /* _PVE_MATRIX3_H_ not defined */

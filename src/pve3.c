@@ -55,17 +55,20 @@ int main(int argc, char** argv)
 
   
 
-  Vector mean_wm,mean_gm,mean_csf,mean_bg;
-  Matrix var_wm,var_gm,var_csf,var_bg;
-  Matrix var_measurement;                    /* measurent noise */
-  double pr_wm,pr_gm,pr_csf,pr_wmgm,pr_gmcsf,pr_csfbg, pr_prior; /* For later use */
+  Vector3D mean_wm,mean_gm,mean_csf,mean_bg;
+  Matrix3D var_wm,var_gm,var_csf,var_bg;
+  Matrix3D var_measurement;	/* measurent noise */
+  double pr_prior;
+#if defined(NOT_IMPL)
+  double pr_wm,pr_gm,pr_csf,pr_wmgm,pr_gmcsf,pr_csfbg; /* For later use */
+#endif /* NOT_IMPL defined */
   double beta = 0.1;
 
   double  slice_width[MAX_DIMENSIONS];
 
   double val[CLASSES],mrf_probability[CLASSES],value; /*  Some temporary variables */
-  Matrix varsum;
-  Vector intensity;
+  Matrix3D varsum;
+  Vector3D intensity;
 
   int same = -2;                          /* For defining the Potts model */
   int similar = -1;
@@ -84,15 +87,15 @@ int main(int argc, char** argv)
   Volume volume_pve[PURE_CLASSES]; /* Volumes for partial volume estimates */
   Volume volume_pve_ml[PURE_CLASSES];  
   
-
   /* Intialize nuisance parameters */
-
+#if defined(NOT_IMPL)
   pr_wm = 0.16667;      /* All tissue types are equally likely */
   pr_gm = 0.16667;
   pr_csf = 0.16667;
   pr_wmgm = 0.16667;
   pr_gmcsf = 0.16667;
   pr_csfbg = 0.16667;
+#endif /* NOT_IMPL defined */
   pr_prior = 0;
 
   /* Initialize pointers to vectors and matrices holding nuisance parameters */ 
@@ -444,7 +447,12 @@ int main(int argc, char** argv)
   return(0);
 }
 
-
-
-
+/* Moved here to avoid multiple definitions */
+const char POTTS_LOOKUP_TABLE[CLASSES + 1][CLASSES + 1] = {{0, 0, 0, 0, 0, 0, 1},
+                                                           {0, 0, 0, 0, 1, 0, 1},
+                                                           {0, 0, 0, 0, 1, 1, 0},
+                                                           {0, 0, 0, 0, 0, 1, 0},
+                                                           {0, 1, 1, 0, 0, 0, 0},
+                                                           {0 ,0, 1, 1, 0, 0, 0},
+                                                           {1, 1, 0, 0, 0, 0, 0}};
 
