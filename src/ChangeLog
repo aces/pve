@@ -1,3 +1,9 @@
+2004-12-20      Vivek Singh	<vsingh@bic.mni.mcgill.ca>
+
+	* modified the pve_curvature script to give 1:0.5
+	weighting to the curvature and medial surface 
+	information, respectively.  
+
 2004-08-20      Vivek Singh     <vsingh@bic.mni.mcgill.ca>
 
 	* added a '-subcortical' option to the pve which makes

@@ -61,6 +61,7 @@ my $greycsf = "$TmpDir/greycsf.mnc";
 my $whitegrp = "$TmpDir/whitegrp.mnc";
 my $greycsfgrp = "$TmpDir/greycsfgrp.mnc";
 my $greycsf1 = "$TmpDir/greycsf1.mnc";
+my $greycsfe = "$TmpDir/greycsfe.mnc";
 my $greycsf50 = "$TmpDir/greycsf50.mnc";
 my $chamf = "$TmpDir/chamf.mnc";
 my $dx = "$TmpDir/dx.mnc";
@@ -79,6 +80,7 @@ my $blur = "$TmpDir/temp_blur.mnc";
 my $curvepref = "$TmpDir/temp";
 my $curve = "$TmpDir/temp_k1.mnc";
 my $curvelt0 = "$TmpDir/curve.mnc";
+my $cplusg = "$TmpDir/cplusg.mnc";
 
 my $kerndx = "$TmpDir/dx.kern";
 my $kerndy = "$TmpDir/dy.kern";
@@ -106,6 +108,7 @@ Spawn(["mincmorph","-group",$white,$whitegrp]);
 Spawn(["mincmorph","-group",$greycsf,$greycsfgrp]);
 Spawn(["minccalc",'A[0] > 1.5 || A[1] > 0.9 && A[1] < 1.1',
        $whitegrp,$greycsfgrp,$greycsf1]);
+Spawn(["mincmorph","-erosion","$greycsf1","$greycsfe"]);
 
 #the GMCSF is inverted and then a distance transform is calculated
 Spawn(["minccalc",'!(A[0])',$greycsf1,$inv]);
@@ -130,28 +133,20 @@ Spawn(["geo_smooth","0.1","4",$dxyz,$smooth]);
 Spawn(["minccalc",'if (A[1]) { if ((A[0]-1) > 0) 0 else 3*(A[0]-1); } else 0',
        $smooth,$greycsf1,$smoothlt0m3]);
 
-#subtracts one from grad image to make the medial areas negative
-#Spawn(["minccalc",'if (A[0] == 0) 0 else A[0]-1',$smoothmask,$smoothm1]);
-#Spawn(["mincmath","-sub","-const","1",$smooths1,$smoothm1]);
-
-#remove values which are over 0 and multiply by a constant
-#Spawn(["minccalc",'if (A[0] > 0) 0 else 3*A[0]',$smoothm1,$smoothlt0m3]);
-#Spawn(["mincmath","-mult","-const","3",$smoothlt0,$smoothlt0m3]);
-
 # create the curvature volume after blurring the input image
 Spawn(["mincblur","-fwhm","4",$spect,$blurpref]);
 Spawn(["make_curvature_volume",$blur,$curvepref]);
 Spawn(["minccalc",'if (A[0] < 0) A[0] else 0',$curve,$curvelt0]);
 
-# create the combination grad+curve volume used for pve
-Spawn(["mincmath","-add",$smoothlt0m3,$curvelt0,$output]);
-
+# create the combination grad+curve volume used for pve and mask out non GM/CSF
+Spawn(["minccalc",'A[0]+0.5*A[1]',$curvelt0,$smoothlt0m3,$cplusg]);
+Spawn(["minccalc",'if (A[1]) A[0] else 0',$cplusg,$greycsfe,$output]);
 
 sub CreateInfoText
 {
   $Usage = <<USAGE;
 usage:
-       $ProgramName [options] spect.mnc classified.mnc mask.mnc output_pref
+       $ProgramName [options] t1_image.mnc classified.mnc mask.mnc output_pref
        $ProgramName -help to list options
 USAGE
   

@@ -60,7 +60,7 @@ int main(int argc, char** argv)
   BOOLEAN sc_region = FALSE;
 
   static double mrf_params[4] = { 0.1, -2, -1, 1};
-  static double curve_params[4] = { -2.0, -25.0, 0.55, 1.0 }; 
+  static double curve_params[4] = { -2.0, -25, 1, 1.0 }; 
   static char* param_file = NULL;
   static char* seg_image = NULL;
   static char* tag_file = NULL;
@@ -479,7 +479,7 @@ int main(int argc, char** argv)
 	    if (use_curve) {
 	      curve_val = get_volume_real_value(volume_curve,i,j,k,0,0);
 	      if (curve_val < 0) {
-		mrf_params[SMLR] = curve_params[0]/(1+exp(curve_params[1]*(abs(curve_val)-curve_params[2]))) 
+		mrf_params[SMLR] = curve_params[0]/(1+exp(curve_params[1]*(fabs(curve_val)-curve_params[2]))) 
 		  - curve_params[3];
 	      }
 	    }
