@@ -1,3 +1,9 @@
+2005-02-04	Vivek Singh	<vsingh@bic.mni.mcgill.ca>
+
+	* updated the latex documentation to correspond 
+	with the changes in argument parsing, curvature
+	estimation, and the use of subcortical information
+
 2004-12-20      Vivek Singh	<vsingh@bic.mni.mcgill.ca>
 
 	* modified the pve_curvature script to give 1:0.5

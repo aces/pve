@@ -2,35 +2,46 @@
 
 \title{PVE user's guide}
 
-\author{Jussi Tohka \\ jussi.tohka@cs.tut.fi}
+\author{Jussi Tohka \\ jussi.tohka@cs.tut.fi \\ Vivek Singh  \\ vsingh@bic.min.mcgill.ca}
 
 \begin{document}
 
 \maketitle
 
+\section{Intro}
+
+This document describes an updated version of the pve programs initially
+written by Jussi Tohka and modified by Vivek Singh.  The main differences
+between the versions are the use of curvature information to modulate CSF
+segmentation in sulcal areas, addition of a subcortical tissue class to improve
+the segmentation of the insula and intelligent argument parsing \`{a} la 
+ParseArgv from the VolumeIO library.
+
 \section{What are pve and pve3 ?}
-The programs pve and pve3 are intended for the partial volume estimation
+The programs pve and pve3 are intended for partial volume estimation
 in brain MRI.  It is assumed that the pure tissue 
 types are white matter (WM) , 
 gray matter (GM) and CSF. The mixed tissue types are WM/GM , GM/CSF
-and CSF/background. 
+and CSF/background.  A subcortical tissue class can also be used in which
+case for regions probabilistically defined as subcortex, the WM/GM class
+is replaced by SC (subcortical), SC/GM and WM/SC.
 
 The program pve handles single spectral images and pve3 handles
-multi-spectral data from 3 channels. The reason for distinct programs is
+multi-spectral 3 channel data. The reason for distinct programs is
 that many things can be done much faster if the data is single-spectral.
 
-This document describes how to use programs, for the description of
-the underlying algorithm see \cite{}. However, for your convenience,
-the next section gives a brief description of the algorithm.
+This document describes how to use the programs.  For a the description of
+the underlying algorithm see \footnote{Tohka et. al, Neuroimage. 2004 Sep;23(1):84-97. }. 
+However, for your convenience, the next section gives a brief description of the algorithm.
 
 \section{The algorithm behind pve and pve3}
 The purpose of pve and pve3 is to estimate the amount of each tissue
 type present in each voxel. They do so by utilizing an indirect
 algorithm based on a statistical model of the partial volume effect: 
 First each voxel is given a label based on what tissue
-types it is expected to contain, the labels are WM, GM, CSF, WM/GM, GM/CSF, CSF/background. Then, by using this information the
-amount of each tissue type present in each voxel is estimated. For
-example, if a voxel is labeled as WM in the first step we know that
+types it is expected to contain, the labels are WM, GM, CSF, WM/GM, GM/CSF, CSF/background. 
+Then, by using this information the amount of each tissue type present in each voxel is 
+estimated. For example, if a voxel is labeled as WM in the first step we know that
 it contains only white matter tissue. However, if a voxel is labeled
 as mixed voxel of WM and GM we must estimate how much it contains WM
 and how much it contains GM.
@@ -50,8 +61,10 @@ There are three alternatives: \\
 
 \subsection*{Usage 1}
 \begin{verbatim}
-pve  -file input_file.mnc brainmask.mnc output_file_name parametersfile.pve \
-[-em/-noem] [-ml/-mlonly/-noml] [-mrf beta same similar different ]
+pve  input_file.mnc output_file_name  -file parametersfile.pve \
+-mask brainmask.mnc [-em/-noem] [-ml/-mlonly/-noml] \
+[-mrf beta same similar different ]
+
 \end{verbatim}
 Here, input\_file.mnc is the name of the image to be processed,
 brainmask.mnc is the name of  a
@@ -76,10 +89,11 @@ different & integer & 1 & should be greater or equal than similar \\
 \end{tabular}
 \end{center}
 
-Note that argument parsing is primitive, and therefore you must say
+Note that the argument parsing requires that you must specify
+all MRF values:
 \begin{verbatim}
-pve -file my_image.mnc my_mask.mnc my_pve my_params.pve -noem -noml \
--mrf 0.2 -2 -1 1
+pve my_image.mnc my_pve -file my_params.pve -mask my_mask.mnc \
+-noem -noml -mrf 0.2 -2 -1 1
 \end{verbatim}
 although you only want to change value of beta and you are otherwise
 satisfied with the defaults.
@@ -87,8 +101,9 @@ satisfied with the defaults.
 \subsection*{Usage 2}
 
 \begin{verbatim} 
- pve -image input_file.mnc brainmask.mnc output_filename segmented_image.mnc \ 
-[-em/-noem] [-ml/-mlonly/-noml] [-mrf beta same similar different ]
+pve input_file.mnc  output_filename -image segmented_image.mnc \   
+-mask brainmask.mnc [-em/-noem] [-ml/-mlonly/-noml] \
+[-mrf beta same similar different ]
 \end{verbatim}
 Now parameters are estimated based on the segmented image which name is
 given as segmented\_image.mnc. In the one dimensional case MCD
@@ -97,24 +112,91 @@ case also, you should set -noem.
 
 \subsection*{Usage 3}
 \begin{verbatim} 
-pve -tags input_file.mnc brainmask.mnc output_filename tagfilename.tag \
-[-em/-noem] [-ml/-mlonly/-noml] [-mrf beta same similar different ]
+pve input_file.mnc output_filename -mask brainmask.mnc \
+-tags tagfilename.tag [-em/-noem] [-ml/-mlonly/-noml] \
+[-mrf beta same similar different ]
 \end{verbatim}
 Parameters can also be estimated based on tag points given in
 tagfilename.tag. Alternatively you may use
 \begin{verbatim} 
-pve -tags my_image.mnc my_mask.mnc my_pve default -em
+pve my_image.mnc my_pve -tags default -mask my_mask.mnc -em
 \end{verbatim}
 in which case the default tagfile will be used. As you may have
 noticed in this case it is advisable to set the option -em.\\
-
 
 The usage of pve3 differs only in that you must specify three input
 images instead of just one. And with the switch -image the parameter
 estimation is done by Maximum Likelihood estimator by default. For MCD 
 estimates, use Matlab instead.
 
+\section{Curvature Information}
+
+Using curvature information to modulate the behaviour of the MRF in
+sulcal areas can have a large effect on the degree of detail
+that is preserved in terms of cortical topology.  For any purpose
+where this may be critical (such as cortical surface extraction) it
+is strongly advisable to make use of curvature information in the
+segmentation process.
+
+Before the actual segmentation is performed, the curvature information used
+as input to pve needs to be generated.  This is done by a script installed
+along with pve called \textit{pve\_curvature}.  This program takes a T1 volume,
+a classified volume and brain mask as input and outputs a curvature file with a
+``\_cg.mnc'' extension:
+
+\begin{verbatim}
+pve_curvature t1.mnc segmented.mnc mask.mnc curvature
+\end{verbatim}
+
+The program, contrary to its name, does not solely rely on image curvature
+information but also make use of medial surface information derived from
+a classified image in order to create the curvature file.
+
+Once the curvature file has been generated you may then run pve with a ``-curve'' as
+follows:
+
+\begin{verbatim}
+pve input_file.mnc output_filename -image segmented_image.mnc \ 
+-mask brainmask.mnc -curve curvature_cg.mnc
+\end{verbatim}
+
+The same can also be done for pve3 (with 3 input files of course), but the pve\_curvature 
+command, using only the t1.mnc file should remain as it is shown here.
+
+\section{Subcortical Information}
+
+A relatively crude segmentation of the subcortical areas of the brain can also be acheived
+using pve, which makes use of information from statistical probability maps of subcortical 
+structures (\textit{i.e.,} putamen, insula, globis pallidus, and thalamus) in order to
+define the region where the subcortex exists and to estimate tissue parameters for the 
+subcortical class.  To do this, a ``-subcortical'' option which includes a parameter
+specifying the file that is being used to define the subcortical region is needed.  This
+file is packaged with the pve distribution and is placed in the directory:
+
+\begin{verbatim}
+${MNI_DATAPATH}/pve/gipt.mnc.gz
+\end{verbatim}
+
+when the program is installed.  To use this option, say in conjuction with the curvature
+estimation, you would specify something like:
+
+\begin{verbatim}
+pve input_file.mnc output_filename -image segmented_image.mnc \
+-mask brainmask.mnc -curve curvature_cg.mnc \
+-subcortical /usr/local/mni/share/pve/gipt.mnc.gz
+\end{verbatim}
+
+if your \$MNI\_DATAPATH variable is set to ``/usr/local/mni/share''.  Alternatively
+you could use the pve\_script program (also installed with pve) which finds this file for you 
+automatically and in this case simply specify:
+
+\begin{verbatim}
+pve_script input_file.mnc output_filename -image segmented_image.mnc \  
+-mask brainmask.mnc -curve curvature_cg.mnc -subcortical
+\end{verbatim}
+
 \section{Output}
+
 The next table gives descriptions of the output files. The sign *
 means the output filename given in the program call. 
 \begin{center}
