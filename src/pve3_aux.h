@@ -13,7 +13,7 @@
                                  indicate that corresponding voxels are of non brain
                                  tissue. */
 #define INTERVALS 50           /* For numerical integration */
-#define MAX_ITERATIONS 50      /* Maximum number of iterations of ICM */
+#define MAX_ITERATIONS 20      /* Maximum number of iterations of ICM */
 #define LIKELIHOOD_RANGE_MIN 0.0
 #define LIKELIHOOD_RANGE_MAX 1.0
 
@@ -67,6 +67,15 @@
 #define ERROR_PARAMS_TAGS "Unable to estimate parameters based on tags points."
 #define ERROR_SECOND_ARG "First argument must -help, -file or -cl. \n \n"
 
+#define NOML 0
+#define MLONLY 1
+#define ML 2
+
+#define BETA 0
+#define SAME 1
+#define SMLR 2
+#define DIFF 3
+
 /* Look up table for Potts model: Tells which classes are similar. Look at the macro 
 Are_similar to figure out how this works. */
 extern const char POTTS_LOOKUP_TABLE[CLASSES + 1][CLASSES + 1];
@@ -117,8 +126,8 @@ double Compute_marginalized_likelihood3(pVector value, pVector mean1 , pVector m
                                        pMatrix measurement_var,
                                        unsigned int nof_intervals);
 double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z, 
-                               double* slice_width, double beta, int same, int similar, 
-                               int different, double prior, int* sizes);
+                               double* slice_width, double beta, double same, double similar, 
+                               double different, double prior, int* sizes);
 void Parameter_estimation3(Volume volume_inT1,Volume volume_inT2,Volume volume_inPD, Volume volume_mask, 
                          Volume probabilities[CLASSES],pVector* mean, pMatrix* var,
                          pMatrix var_measurement);
@@ -133,3 +142,6 @@ int Compute_partial_volume_vectors3_ml(Volume volume_inT1, Volume volume_inT2,
                                     Volume volume_pve[PURE_CLASSES],
                                     pVector means[PURE_CLASSES + 1], 
                                     pMatrix vars[PURE_CLASSES + 1], pMatrix var_measurement);
+
+void Usage_info(char* pname);
+

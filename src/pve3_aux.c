@@ -32,6 +32,16 @@ printf(" Order of these is important \n");
 
 }
 
+void Usage_info(char* pname) {
+  
+  (void) fprintf(stderr,
+		 "\nUsage: %s [<options>] -<np estimator> <estimator_file> -mask <maskfile> <t1> <t2> <pd> <outfile_prefix>\n", pname);
+  (void) fprintf(stderr,"        (where -<np estimator> must be either -file, -image or -tags)\n\n");
+  (void) fprintf(stderr,"       %s [-help]\n\n", pname);
+
+}
+
+
 
 /* -----------------------------------------------------------
    Functions related to parameter input
@@ -759,13 +769,13 @@ double Compute_marginalized_likelihood3(pVector value, pVector mean1 , pVector m
 
  */
 double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z, 
-                               double* slice_width, double beta, int same, int similar, int different, 
+                               double* slice_width, double beta, double same, double similar, double different, 
                                double prior, int* sizes)
 {
   int i,j,k;
   char label2;  
   double exponent, distance;
-  int similarity_value;
+  double similarity_value;
   char on_the_border;
 
   on_the_border = (x == 0) || (y == 0) || (z == 0) || (x == sizes[0] - 1) 

@@ -12,7 +12,7 @@
                                  indicate that corresponding voxels are of non brain
                                  tissue. */
 #define INTERVALS 50           /* For numerical integration */
-#define MAX_ITERATIONS 50      /* Maximum number of iterations of ICM */
+#define MAX_ITERATIONS 20      /* Maximum number of iterations of ICM */
 #define LIKELIHOOD_RANGE_MIN 0.0
 #define LIKELIHOOD_RANGE_MAX 1.0
 
@@ -23,7 +23,7 @@
 #define ESTIMATOR "MCD"   /* MVE, MCD and ML supported */
 
 #define MEASUREMENT_FRACTION 0.5 /* if the model with both measurent noise and 
-                                    psysiological noise is used, this defines how big
+                                    physiological noise is used, this defines how big
                                     part the measurement noise is from the less varying pure 
                                     tissue type */
 
@@ -47,7 +47,6 @@
 #define GMCSFLABEL 4
 #define WMGMLABEL 5
 #define CSFBGLABEL 6
-
 /* Error messages */
 
 #define ERROR_TOO_FEW    "Too few input argumants. Try pve -help \n \n"
@@ -56,6 +55,15 @@
 #define ERROR_PARAMS_IMAGE "Unable to estimate parameters based on the segmented image."
 #define ERROR_PARAMS_TAG "Unable to estimate parameters based on tag points."
 #define ERROR_SECOND_ARG "First argument must -help, -file or -image. \n \n"
+
+#define NOML 0
+#define MLONLY 1
+#define ML 2
+
+#define BETA 0
+#define SAME 1
+#define SMLR 2
+#define DIFF 3
 
 /* Look up table for Potts model: Tells which classes are similar. Look at the macro 
 Are_similar to figure out how this works. */
@@ -78,6 +86,7 @@ int Estimate_mve(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_
                  double* mean,double* var);
 int Estimate_mcd(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
                  double* mean,double* var);
+
 double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
                 long int* pcount);
 
@@ -97,6 +106,7 @@ int Open_images(char* in_fn, char* mask_fn, Volume* pvolume_in,
 void Limit_0_1(double* x);
 
 void Normalize(double* pval, char n);
+
 char Maxarg(double* pval, char n);
 
 double Compute_Gaussian_likelihood(double value, double mean , double var);
@@ -105,8 +115,14 @@ double Compute_marginalized_likelihood(double value, double mean1 , double mean2
                                        double measurement_var,
                                        unsigned int nof_intervals);
 double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z, 
-                               double* slice_width, double beta, int same, int similar, 
-                               int different, double prior, int* sizes);
+                               double* slice_width, double beta, double same, double similar, 
+                               double different, double prior, int* sizes);
+
+double Compute_mrf_probability_curvature(char label, Volume* pvolume, int x, int y , int z, 
+                               double* slice_width, double beta, double same, double similar, 
+			       double different, double prior, int* sizes, Volume *cvolume,
+					 double cval);
+
 void Parameter_estimation(Volume volume_in, Volume volume_mask, 
                          Volume probabilities[CLASSES],double* mean, double* var,
                          double* var_measurement);
@@ -115,5 +131,4 @@ int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
 int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified,
                                       Volume volume_pve_ml[PURE_CLASSES],
                                       double* mean, double* var, double var_measurement);
-
-
+void Usage_info(char* pname);

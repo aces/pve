@@ -35,7 +35,14 @@ printf(" Order of these is important!! \n");
 }
 
 
+void Usage_info(char* pname) {
+  
+  (void) fprintf(stderr,
+		 "\nUsage: %s [<options>] -<np estimator> <estimator_file> -mask <maskfile> <infile> <outfile_prefix>\n", pname);
+  (void) fprintf(stderr,"        (where -<np estimator> must be either -file, -image or -tags)\n\n");
+  (void) fprintf(stderr,"       %s [-help]\n\n", pname);
 
+}
 
 /* -----------------------------------------------------------
    Functions related to parameter input
@@ -103,7 +110,7 @@ int Get_params_from_file(char* fn, double* mean , double* var, double* pvmeasure
    estimation.  */
 
 int Estimate_params_from_image(Volume volume_in, Volume volume_mask, 
-                               char* segmentation_filename, double* mean ,
+                               char* segmentation_filename, double* mean,
                                double* var, double* pvmeasurement) 
 {
   Volume volume_seg;
@@ -207,9 +214,6 @@ int Estimate_mcd(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_
   return(0);
 }  
 
-/* Function that collects intensity values for parameter estimation into one vector.
-   Returns the pointer to the vector where the samples are collected.
-   This function supports also MVE estimator */
 
 double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
                 long int* pcount) 
@@ -340,8 +344,6 @@ double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,cha
   return(sample_vector);
 }
 
-
-
 /* Get parameters based on a tag_file */
 
 int Estimate_params_from_tags(char* tag_filename,Volume volume_in,
@@ -387,7 +389,7 @@ int Estimate_params_from_tags(char* tag_filename,Volume volume_in,
          adj_num_samples[c - 1] = adj_num_samples[c - 1] + 1;
        }
        else {
-         printf("\n Warning there is something curious with the labels \n");
+	 printf("\n Warning there is something curious with the labels \n");
        }
      }
    }
@@ -488,7 +490,6 @@ void Normalize(double* pval, char n)
   }
 }
 
-
 /* Finds maximum argument out of the n possibilities */
 
 char Maxarg(double* pval,char n)
@@ -506,9 +507,6 @@ char Maxarg(double* pval,char n)
   }
   return(index);
 }
-
-
-
 
 /* -------------------------------------------------------------------
 Computes likelihood of value given parameters mean and variance. 
@@ -566,7 +564,7 @@ double Compute_marginalized_likelihood(double value, double mean1 , double mean2
  */
 
 double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z, 
-                               double* slice_width, double beta, int same, int similar, int different, 
+                               double* slice_width, double beta, double same, double similar, double different, 
                                double prior, int* sizes)
 {
   int i,j,k;
@@ -612,10 +610,69 @@ double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z
       }
     }
   } 
+  
   return(exp(- ( beta* exponent)));  
  
 
 } 
+
+double Compute_mrf_probability_curvature(char label, Volume* pvolume, int x, int y , int z, 
+                               double* slice_width, double beta, double same, double similar, 
+			       double different, double prior, int* sizes, Volume *cvolume,
+					 double cval)
+{
+  int i,j,k;
+  char label2;  
+  double exponent, distance;
+  double similarity_value;
+  char on_the_border;
+  double curve_val;
+
+  on_the_border = (x == 0) || (y == 0) || (z == 0) || (x == sizes[0] - 1) 
+                  || (y == sizes[1] - 1) || (z == sizes[2] - 1); 
+  /* To determine if it's possible to get out of image limits. 
+     If not true (as it usually is) this saves the trouble calculating this 27 times */
+ 
+  exponent = 0;
+  for(i = -1; i < 2; i++) {
+    for(j = -1; j < 2; j++) {
+      for(k = -1; k < 2; k++) {
+         if( i == 0 && j == 0 && k == 0 ) 
+           exponent = exponent + prior;
+         else {
+           if(!on_the_border) { /* There's no danger of getting out of the image limits */
+             label2 = get_volume_real_value(*pvolume, x + i, y + j , z + k,0,0);
+           }
+           else {
+             if(x + i < 0 || y + j < 0 || z + k < 0 || x + i > sizes[0] - 1
+                || y + j > sizes[1] - 1 || z + k > sizes[2] - 1) {
+               label2 = BGLABEL;
+             }
+             else {
+               label2 = get_volume_real_value(*pvolume, x + i, y + j , z + k,0,0);
+             }
+           }    
+           if(Are_same(label,label2)) similarity_value = same;
+           else if(Are_similar(label,label2)) similarity_value = similar;
+           else similarity_value = different;
+
+           distance = sqrt(pow(slice_width[0] * abs(i),2) +
+                           pow(slice_width[1] * abs(j),2) +
+                           pow(slice_width[2] * abs(k),2));
+
+           exponent = exponent + similarity_value/distance;
+	 }
+      }
+    }
+  } 
+
+  curve_val = cval*get_volume_real_value(*cvolume, i, j, k, 0, 0);
+  
+  return(exp(-( beta* exponent) - curve_val));  
+ 
+
+} 
+
 
 /* Function that handles the re-estimation of means and variances for pure 
    tissue classes. Currently the variance of measurement noise is estimated 
@@ -725,7 +782,7 @@ void Parameter_estimation(Volume volume_in, Volume volume_mask,
       }
     }
     *var_measurement = *var_measurement / total_probability;
-    printf("Varince: %f \n",*var_measurement);
+    printf("Variance: %f \n",*var_measurement);
   }
 }
   
@@ -775,7 +832,7 @@ int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
              break;                
         case CSFLABEL: 
-             set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
+	     set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,1.0);
              break;
