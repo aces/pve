@@ -570,7 +570,7 @@ double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z
   int i,j,k;
   char label2;  
   double exponent, distance;
-  int similarity_value;
+  double similarity_value;
   char on_the_border;
 
   on_the_border = (x == 0) || (y == 0) || (z == 0) || (x == sizes[0] - 1) 
@@ -616,62 +616,6 @@ double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z
 
 } 
 
-double Compute_mrf_probability_curvature(char label, Volume* pvolume, int x, int y , int z, 
-                               double* slice_width, double beta, double same, double similar, 
-			       double different, double prior, int* sizes, Volume *cvolume,
-					 double cval)
-{
-  int i,j,k;
-  char label2;  
-  double exponent, distance;
-  double similarity_value;
-  char on_the_border;
-  double curve_val;
-
-  on_the_border = (x == 0) || (y == 0) || (z == 0) || (x == sizes[0] - 1) 
-                  || (y == sizes[1] - 1) || (z == sizes[2] - 1); 
-  /* To determine if it's possible to get out of image limits. 
-     If not true (as it usually is) this saves the trouble calculating this 27 times */
- 
-  exponent = 0;
-  for(i = -1; i < 2; i++) {
-    for(j = -1; j < 2; j++) {
-      for(k = -1; k < 2; k++) {
-         if( i == 0 && j == 0 && k == 0 ) 
-           exponent = exponent + prior;
-         else {
-           if(!on_the_border) { /* There's no danger of getting out of the image limits */
-             label2 = get_volume_real_value(*pvolume, x + i, y + j , z + k,0,0);
-           }
-           else {
-             if(x + i < 0 || y + j < 0 || z + k < 0 || x + i > sizes[0] - 1
-                || y + j > sizes[1] - 1 || z + k > sizes[2] - 1) {
-               label2 = BGLABEL;
-             }
-             else {
-               label2 = get_volume_real_value(*pvolume, x + i, y + j , z + k,0,0);
-             }
-           }    
-           if(Are_same(label,label2)) similarity_value = same;
-           else if(Are_similar(label,label2)) similarity_value = similar;
-           else similarity_value = different;
-
-           distance = sqrt(pow(slice_width[0] * abs(i),2) +
-                           pow(slice_width[1] * abs(j),2) +
-                           pow(slice_width[2] * abs(k),2));
-
-           exponent = exponent + similarity_value/distance;
-	 }
-      }
-    }
-  } 
-
-  curve_val = cval*get_volume_real_value(*cvolume, i, j, k, 0, 0);
-  
-  return(exp(-( beta* exponent) - curve_val));  
- 
-
-} 
 
 
 /* Function that handles the re-estimation of means and variances for pure 

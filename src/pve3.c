@@ -8,7 +8,7 @@
 @GLOBALS    : 
 @CALLS      : 
 @CREATED    : Feb 2002 (Jussi Tohka, jupeto@cs.tut.fi) 
-@MODIFIED   : The last modifacation in Aug 2004 by Vivek Singh
+@MODIFIED   : Last modification in Aug 2004 by Vivek Singh
 ---------------------------------------------------------------------------- */
 
 /* Partial volume estimation for multi channel data 

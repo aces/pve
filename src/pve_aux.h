@@ -31,8 +31,7 @@
 #define MIXED_CLASSES 3  /* The number of mixed tissue classes */
 #define CLASSES 6        /* The number of mixed and pure tissue classes */
 
-/* Labels: It is assumed that:
-   BGLABEL = 0;
+/* Labels: It is assumed that:   BGLABEL = 0;
    pure tissue labels are from 1 to 3;
    mixed tissue classes have labels 4 to 6;
    otherwise you should have no problems in renumbering classes.
@@ -117,11 +116,6 @@ double Compute_marginalized_likelihood(double value, double mean1 , double mean2
 double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z, 
                                double* slice_width, double beta, double same, double similar, 
                                double different, double prior, int* sizes);
-
-double Compute_mrf_probability_curvature(char label, Volume* pvolume, int x, int y , int z, 
-                               double* slice_width, double beta, double same, double similar, 
-			       double different, double prior, int* sizes, Volume *cvolume,
-					 double cval);
 
 void Parameter_estimation(Volume volume_in, Volume volume_mask, 
                          Volume probabilities[CLASSES],double* mean, double* var,
