@@ -1,6 +1,6 @@
-bin_SCRIPTS = pve_insect discretize_pve
+bin_SCRIPTS = pve_insect discretize_pve pve_curvature
 
-EXTRA_DIST = pve_insect.pl discretize_pve.pl
+EXTRA_DIST = pve_insect.pl discretize_pve.pl pve_curvature.pl
 
 SUFFIXES = .pl
 .pl:
@@ -12,5 +12,5 @@ SUFFIXES = .pl
 		-e 's,xPKGDATADIRx,$(pkgdatadir),g' &&\
 	mv $@-t $@
 
-CLEANFILES = pve_insect discretize_pve
+CLEANFILES = pve_insect discretize_pve pve_curvature
 

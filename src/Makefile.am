@@ -22,7 +22,7 @@ bin_PROGRAMS = \
 	make_curvature_volume \
 	geo_smooth
 
-EXTRA_DIST = $(m4_files)
+EXTRA_DIST = $(m4_files) \
         least_trimmed_squares.h \
         matrix3.h \
         minvarellipsoid.h \
