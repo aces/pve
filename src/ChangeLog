@@ -1,3 +1,13 @@
+2004-08-20      Vivek Singh     <vsingh@bic.mni.mcgill.ca>
+
+	* added a '-subcortical' option to the pve which makes
+	use of subcortical tissue class in areas specified
+	by a subcortical mask (located  in the models directory)
+	* added a pve_script which runs either pve or pve3
+	depending on the # of input files.  The main reason
+	for it is to prevent users from having to specify
+	the full path to the subcortical mask.
+
 2004-08-03	Vivek Singh	<vsingh@bic.mni.mcgill.ca>
 
 	* intelligent argument parsing using ParseArgv introduced	

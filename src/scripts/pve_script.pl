@@ -27,7 +27,9 @@ usage:
 
 USAGE
 
-my $vol_classified = undef;
+Getopt::Tabular::SetHelp ($help, $usage);
+
+my $vol_classified = undef; 
 my $vol_curvature = undef;
 my $vol_mask = undef;
 my $use_subcort = 1;

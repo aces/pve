@@ -247,8 +247,8 @@ RECURSIVE_TARGETS = info-recursive dvi-recursive pdf-recursive \
 	check-recursive installcheck-recursive
 DIST_COMMON = README $(noinst_HEADERS) $(srcdir)/Makefile.in \
 	$(srcdir)/configure AUTHORS COPYING ChangeLog INSTALL \
-	Makefile.am NEWS aclocal.m4 config.h.in configure configure.ac \
-	depcomp install-sh missing mkinstalldirs
+	Makefile.am NEWS aclocal.m4 config.h.in configure.ac depcomp \
+	install-sh missing mkinstalldirs
 DIST_SUBDIRS = $(SUBDIRS)
 SOURCES = $(geo_smooth_SOURCES) $(make_curvature_volume_SOURCES) $(pve_SOURCES) $(pve3_SOURCES)
 
