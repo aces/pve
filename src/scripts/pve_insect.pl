@@ -165,7 +165,9 @@ sub Initialize
    
    # create the output directory if necessary
    my($dir, $base, $ext) = split_path($outputBase, 'last', [qw(gz z Z)]);
-   system("mkdir -p $dir") unless (-d $dir);
+   if ($dir) {
+       system("mkdir -p $dir") unless (-d $dir);
+   }
    
    RegisterPrograms([qw(nu_correct_norm mritotal mincresample discretize_pve
                        classify_clean pve pve3 nu_correct msd_masks
