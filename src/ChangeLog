@@ -1,2 +1,9 @@
+2004-01-26	Jason Lerch	<jason@bic.mni.mcgill.ca>
+
+	* added scripts directory with discretize_pve.pl and pve_insect.pl
+	in it.
+	* bumped up version number to 1.0
+	* updated NEWS
+
 8-Jan-2003	bert - Fix warnings and errors, esp. w.r.t. GCC
 8-Jan-2003	bert - Autoconfiscated

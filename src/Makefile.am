@@ -46,3 +46,6 @@ pve3_SOURCES = \
 	minvarellipsoid3.c \
 	kth_smallest.c
 
+SUBDIRS = scripts
+
+

@@ -3,7 +3,7 @@ dnl Process this file with autoconf to produce a configure script.
 AC_INIT
 AC_CONFIG_SRCDIR([pve.c])
 dnl AC_CONFIG_AUX_DIR(ac_config_aux)
-AM_INIT_AUTOMAKE(pve, 0.90)
+AM_INIT_AUTOMAKE(pve, 1.0)
 AM_CONFIG_HEADER([config.h])
 
 AC_REVISION($Revision$)
@@ -17,6 +17,9 @@ smr_WITH_BUILD_PATH
 # Check for required C libraries
 mni_REQUIRE_VOLUMEIO
 
-AC_CONFIG_FILES([Makefile])
+# check for perl
+AC_PATH_PROGS(PERL, perl5 perl )
+
+AC_CONFIG_FILES([Makefile scripts/Makefile])
 AC_OUTPUT
 
