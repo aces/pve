@@ -403,6 +403,7 @@ int main(int argc, char** argv)
    
     printf("ICM step \n");
     changed = FALSE;
+    changed_num = 0;
     for(i = 0; i < sizes[0]; ++i) {
       for(j = 0; j < sizes[1]; ++j) {
         for(k = 0; k < sizes[2]; ++k) {
