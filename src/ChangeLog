@@ -1,3 +1,7 @@
+2004-07-29	Jason Lerch	<jason@bic.mni.mcgill.ca>
+
+	* ensured header inclusion in make dist
+	
 2004-02-03	Jason Lerch	<jason@bic.mni.mcgill.ca>
 
 	* added model specification options to pve_insect

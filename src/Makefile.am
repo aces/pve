@@ -20,7 +20,15 @@ bin_PROGRAMS = \
 	pve \
 	pve3
 
-EXTRA_DIST = $(m4_files)
+EXTRA_DIST = $(m4_files) \
+	least_trimmed_squares.h \
+	matrix3.h \
+	minvarellipsoid.h \
+	minvarellipsoid3.h \
+	pve3_aux.h \
+	pve_aux.h \
+	pve_support.h
+
 
 m4_files = \
 	m4/mni_REQUIRE_LIB.m4 \
