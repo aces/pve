@@ -25,10 +25,11 @@ my $outputBase;
 my($Usage, $Help);
 my $multispectral = 0;
 
-&Initialize;
-
-
 my $Template = MNI::DataDir::dir('ICBM') . 'icbm_template_1.00mm.mnc';
+my $modelDir = MNI::DataDir::dir('mni_autoreg');
+my $model = 'icbm_avg_152_t1_tal_lin_symmetric';
+
+&Initialize;
 
 #####  output file names #####
 my $t1_nuc = "${outputBase}_t1_nuc_pretal.mnc";
@@ -68,7 +69,8 @@ Spawn(['nu_correct_norm', $t2, $t2_nuc]) if ($multispectral);
 Spawn(['nu_correct_norm', $pd, $pd_nuc]) if ($multispectral);
 
 # Step 2: linear registration to talairach space
-Spawn(['mritotal', $t1_nuc, $t1_tal_xfm]);
+Spawn(['mritotal', '-modeldir', $modelDir, '-model', $model, 
+       $t1_nuc, $t1_tal_xfm]);
 Spawn(['t2atot1', $t2_nuc, $t1_nuc, $t1_tal_xfm, $t2_to_t1_xfm, $t2_tal_xfm]) 
     if ($multispectral);
 
@@ -131,7 +133,14 @@ sub Initialize
 
    &CreateInfoText;
 
-   my(@argTbl) = (@DefaultArgs);
+   my(@argTbl) = (
+       @DefaultArgs,
+       ["Registration Options", "section"],
+       ["-modeldir", "string", 1, \$modelDir,
+	"set the default directory to search for model files [default: $modelDir"],
+       ["-model", "string", 1, \$model,
+	"set the base name of the fit model files [default: $model]"],
+   );
    
    my(@leftOverArgs);
 
