@@ -1,0 +1,144 @@
+\documentclass{article}
+
+\title{PVE user's guide}
+
+\author{Jussi Tohka \\ jussi.tohka@cs.tut.fi}
+
+\begin{document}
+
+\maketitle
+
+\section{What are pve and pve3 ?}
+The programs pve and pve3 are intended for the partial volume estimation
+in brain MRI.  It is assumed that the pure tissue 
+types are white matter (WM) , 
+gray matter (GM) and CSF. The mixed tissue types are WM/GM , GM/CSF
+and CSF/background. 
+
+The program pve handles single spectral images and pve3 handles
+multi-spectral data from 3 channels. The reason for distinct programs is
+that many things can be done much faster if the data is single-spectral.
+
+This document describes how to use programs, for the description of
+the underlying algorithm see \cite{}. However, for your convenience,
+the next section gives a brief description of the algorithm.
+
+\section{The algorithm behind pve and pve3}
+The purpose of pve and pve3 is to estimate the amount of each tissue
+type present in each voxel. They do so by utilizing an indirect
+algorithm based on a statistical model of the partial volume effect: 
+First each voxel is given a label based on what tissue
+types it is expected to contain, the labels are WM, GM, CSF, WM/GM, GM/CSF, CSF/background. Then, by using this information the
+amount of each tissue type present in each voxel is estimated. For
+example, if a voxel is labeled as WM in the first step we know that
+it contains only white matter tissue. However, if a voxel is labeled
+as mixed voxel of WM and GM we must estimate how much it contains WM
+and how much it contains GM.
+
+This being said there is one thing that must be done before the
+labeling. The distributions of the pure tissue types must be
+specified. This means that their parameters must be estimated. pve and 
+pve3 contain two alternatives for this: 1) you can give a classified
+version of the image to be processed  to the programs which will
+ then estimate parameters based on the classification. 2) you can
+choose EM-type algorithm for simultaneous estimation of partial volume 
+fractions
+and parameters. The alternative 2) is much slower!
+
+\section{Using pve and pve3}
+There are three alternatives: \\
+
+\subsection*{Usage 1}
+\begin{verbatim}
+pve  -file input_file.mnc brainmask.mnc output_file_name parametersfile.pve \
+[-em/-noem] [-ml/-mlonly/-noml] [-mrf beta same similar different ]
+\end{verbatim}
+Here, input\_file.mnc is the name of the image to be processed,
+brainmask.mnc is the name of  a
+volume that contains brainmask for this image (this is not optional!)
+output\_file\_name is the common part of the names of output
+files. There are 4 - 7 of these and what they are is explained later.
+By using the switch -file you specify that parameters are given in a
+file parametersfile.pve, whose format is specified in the source file
+pve\_aux.c. By specifying -em you set the parameter updates on, usually 
+you should use -noem (which is the default) if you give parameters in
+a file. Options -ml/-mlonly/-noml specify what to output and are
+explained later. By specifying the switch -mrf you can control the
+Potts model used in the classification. The default values are:
+
+\begin{center}
+\begin{tabular}{c|c|c|c}
+variable & type & value & notes \\
+beta & double & 0.1   &  may not be negative \\
+same & integer & -2   & should be smaller or equal than similar \\
+similar & integer & -1 & should be smaller or equal than different \\
+different & integer & 1 & should be greater or equal than similar \\
+\end{tabular}
+\end{center}
+
+Note that argument parsing is primitive, and therefore you must say
+\begin{verbatim}
+pve -file my_image.mnc my_mask.mnc my_pve my_params.pve -noem -noml \
+-mrf 0.2 -2 -1 1
+\end{verbatim}
+although you only want to change value of beta and you are otherwise
+satisfied with the defaults.
+
+\subsection*{Usage 2}
+
+\begin{verbatim} 
+ pve -image input_file.mnc brainmask.mnc output_filename segmented_image.mnc \ 
+[-em/-noem] [-ml/-mlonly/-noml] [-mrf beta same similar different ]
+\end{verbatim}
+Now parameters are estimated based on the segmented image which name is
+given as segmented\_image.mnc. In the one dimensional case MCD
+estimator based on pruned segmented image is used as default. In this
+case also, you should set -noem. 
+
+\subsection*{Usage 3}
+\begin{verbatim} 
+pve -tags input_file.mnc brainmask.mnc output_filename tagfilename.tag \
+[-em/-noem] [-ml/-mlonly/-noml] [-mrf beta same similar different ]
+\end{verbatim}
+Parameters can also be estimated based on tag points given in
+tagfilename.tag. Alternatively you may use
+\begin{verbatim} 
+pve -tags my_image.mnc my_mask.mnc my_pve default -em
+\end{verbatim}
+in which case the default tagfile will be used. As you may have
+noticed in this case it is advisable to set the option -em.\\
+
+
+The usage of pve3 differs only in that you must specify three input
+images instead of just one. And with the switch -image the parameter
+estimation is done by Maximum Likelihood estimator by default. For MCD 
+estimates, use Matlab instead.
+
+\section{Output}
+The next table gives descriptions of the output files. The sign *
+means the output filename given in the program call. 
+\begin{center}
+\begin{tabular}{c|c}
+filename & what? \\
+*\_disc.mnc     & discrete PV classification (6 labels) \\
+*\_csf.mnc      & amount of csf in each voxel based on simplified model \\
+*\_gm.mnc       & amount of gm in each voxel  based on simplified model \\
+*\_wm.mnc       & amount of wm in each voxel  based on simplified model \\
+*\_exactcsf.mnc & amount of csf in each voxel based on complete model \\
+*\_exactgm.mnc  &  amount of gm in each voxel based on complete model \\
+*\_exactwm.mnc  &  amount of wm in each voxel based on complete model \\
+\end{tabular}
+\end{center}
+
+When calculating partial
+volume fractions we can use the complete model or the simplified
+model. There is only little difference in the results, usually in the
+favor of the complete model. However, the complete model is a bit 
+slower to compute and might be more sensitive for errors in the parameter estimation. 
+
+By saying -noml (which is default) in the program call, you get 
+only the estimates based on the simplified model, by saying -mlonly  you get 
+only the estimates based on the complete model and by saying -ml you
+get the both estimates.
+
+\end{document}
