@@ -58,7 +58,7 @@ int main(int argc, char** argv)
   BOOLEAN use_steady_state = TRUE;
 
   static double mrf_params[4] = { 0.1, -2, -1, 1};
-  static double curve_params[4] = { -3.0, -25.0, 0.55, 1.0 };
+  static double curve_params[4] = { -2.0, -25.0, 0.55, 1.0 };
   static char* param_file = NULL;
   static char* seg_image = NULL;
   static char* tag_file = NULL;
@@ -97,7 +97,7 @@ int main(int argc, char** argv)
      "Parameters to use to weight curvature information"},
     {"-count",ARGV_CONSTANT,(char *) TRUE, (char *) &use_counter,
      "Output volume containing change count"},
-    {"-iterations",ARGV_CONSTANT,(char *) TRUE, (char *) &num_iterations,
+    {"-iterations",ARGV_INT,(char *) 0, (char *) &num_iterations,
      "Number of iterations to use unless convergence is reached"},
     {NULL, ARGV_HELP, (char *) NULL, (char *) NULL, "General options:"},
     {"-clobber",ARGV_CONSTANT,(char *) TRUE, (char *) &clobber,  
