@@ -1,3 +1,11 @@
+2004-08-03	Vivek Singh	<vsingh@bic.mni.mcgill.ca>
+
+	* intelligent argument parsing using ParseArgv introduced	
+	* an option '-curve' to include a curvature/medial surface 
+	image to modulate the MRF used in deep sulci CSF regions
+	* a script to generate the curvature image in the scripts
+	directory called pve_curvaure.pl
+
 2004-07-29	Jason Lerch	<jason@bic.mni.mcgill.ca>
 
 	* ensured header inclusion in make dist
