@@ -61,4 +61,4 @@ make_curvature_volume_SOURCES = \
 geo_smooth_SOURCES = \
 	geo_smooth.cc
 
-SUBDIRS = scripts
+SUBDIRS = scripts models

@@ -46,7 +46,7 @@ AWK = gawk
 CC = gcc
 CCDEPMODE = depmode=gcc3
 CFLAGS = -g -O2
-CPPFLAGS = 
+CPPFLAGS =  -I/usr/local/mni/include
 CXX = g++
 CXXDEPMODE = depmode=gcc3
 CXXFLAGS = -g -O2
@@ -61,7 +61,7 @@ INSTALL_DATA = ${INSTALL} -m 644
 INSTALL_PROGRAM = ${INSTALL}
 INSTALL_SCRIPT = ${INSTALL}
 INSTALL_STRIP_PROGRAM = ${SHELL} $(install_sh) -c -s
-LDFLAGS = 
+LDFLAGS =  -L/usr/local/mni/lib
 LIBOBJS = 
 LIBS = -lvolume_io -lminc -lnetcdf -lm 
 LTLIBOBJS = 
@@ -180,7 +180,7 @@ geo_smooth_SOURCES = \
 	geo_smooth.cc
 
 
-SUBDIRS = scripts
+SUBDIRS = scripts models
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs

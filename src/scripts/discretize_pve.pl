@@ -11,7 +11,7 @@ use Getopt::Tabular;
 
 # global variables
 my ($Help, $Usage);
-my ($csf, $wm, $gm, $output);
+my ($csf, $wm, $gm, $sc, $output);
 
 $, = ' ';     # set output field separator
 
@@ -25,14 +25,23 @@ $Execute      = 1;
 $Clobber      = 0;
 $KeepTmp      = 0;
 
+my $sctowm       = 0;
+
 &CreateInfoText;
 
-my(@argTbl) = (@DefaultArgs);
+my(@argTbl) = (
+	       @DefaultArgs,
+	       ["-sctowm|-nosctowm",'boolean',1,\$sctowm,
+	       'convert subcortical tissue to white matter [default: -nosctowm]']
+	      );
 
 my(@leftOverArgs);
 
 GetOptions (\@argTbl, \@ARGV, \@leftOverArgs) || die "\n";
-if ($#leftOverArgs != 3) {
+
+my $numargs = @leftOverArgs;
+
+if (($numargs != 4)&&($numargs != 5))  {
     warn $Usage;
     die "Incorrect number of arguments\n";
 }
@@ -40,6 +49,11 @@ if ($#leftOverArgs != 3) {
 $csf = shift @leftOverArgs;
 $wm = shift @leftOverArgs;
 $gm = shift @leftOverArgs;
+
+if ($numargs == 5) {
+  $sc = shift @leftOverArgs;
+}
+
 $output = shift @leftOverArgs;
 
 if (-e $output && !$Clobber) {
@@ -49,14 +63,23 @@ if (-e $output && !$Clobber) {
 RegisterPrograms(["minccalc"]);
 AddDefaultArgs('minccalc', ['-clobber']) if ($Clobber);
 
-Spawn(['minccalc', '-expression' ,'if (A[0] > A[1] && A[0] > A[2]) { out = 1; } else if (A[1] > A[0] && A[1] > A[2]) { out = 2; } else if (A[2] > A[0] && A[2] > A[1]) { out = 3; } else { out = 0; }', $csf, $gm, $wm, $output]);
-
+if ($numargs == 4) {
+  Spawn(['minccalc', '-expression' ,'if (A[0] > A[1] && A[0] > A[2]) 1 else if (A[1] > A[2]) 2 else if (A[2] > 0) 3 else 0', $csf, $gm, $wm, $output]);
+}
+elsif ($sctowm) {
+  Spawn(['minccalc','-expression','if (A[0] > A[1] && A[0] > A[2] && A[0] > A[3]) 1 else if (A[1] > A[2] && A[1] > A[3]) 2 else if (A[2] > 0 || A[3] > 0) 3 else 0',
+	 $csf,$gm,$wm,$sc,$output]);
+}
+else {
+  Spawn(['minccalc','-expression','if (A[0] > A[1] && A[0] > A[2] && A[0] > A[3]) 1 else if (A[1] > A[2] && A[1] > A[3]) 2 else if (A[2] > A[3]) 3 else if (A[3] > 0) 4 else 0',
+	 $csf,$gm,$wm,$sc,$output]);
+}
 
 # create the help messages and such
 sub CreateInfoText
 {
     $Usage = <<USAGE;
-Usage: $ProgramName [options] <pve_csf.mnc> <pve_wm.mnc> <pve_gm.mnc> <output.mnc>
+Usage: $ProgramName [options] <pve_csf.mnc> <pve_wm.mnc> <pve_gm.mnc> [<pve_sc.mnc>] <output.mnc>
        $ProgramName -help for details
 USAGE
 

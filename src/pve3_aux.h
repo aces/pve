@@ -17,10 +17,6 @@
 #define LIKELIHOOD_RANGE_MIN 0.0
 #define LIKELIHOOD_RANGE_MAX 1.0
 
-#define PURE_CLASSES 3   /* The number of pure tissue classes */
-#define MIXED_CLASSES 3  /* The number of mixed tissue classes */
-#define CLASSES 6        /* The number of mixed and pure tissue classes */
-
 #define MAXSAMPLES 50000 
 #define MAXTRIALS 10000
 #define DEFAULT_TAG_FILENAME "/usr/local/mni/data/classify/ntags_1000_prob_90_nobg.tag"
@@ -40,6 +36,10 @@
                                     tissue type */
 
 
+#define PURE_CLASSES 4   /* The number of pure tissue classes */
+#define MIXED_CLASSES 5  /* The number of mixed tissue classes */
+#define CLASSES 9        /* The number of mixed and pure tissue classes */
+
 /* Labels: It is assumed that:
    BGLABEL = 0;
    pure tissue labels are from 1 to 3;
@@ -48,16 +48,18 @@
    However, you must update also the Potts look up table and the partial 
    volume class look up table if you change the labels.
   */
+
+
 #define WMLABEL 3
 #define GMLABEL 2
 #define CSFLABEL 1
 #define BGLABEL 0
-#define GMCSFLABEL 4
-#define WMGMLABEL 5
-#define CSFBGLABEL 6
-
-
-
+#define GMCSFLABEL 5
+#define WMGMLABEL 6
+#define CSFBGLABEL 7
+#define SCLABEL 4
+#define WMSCLABEL 8
+#define SCGMLABEL 9
 /* Error messages */
 
 #define ERROR_TOO_FEW    "Too few input argumants. Try pve3 -help \n \n"
@@ -92,11 +94,14 @@ int Get_params_from_file3(char* fn, pVector means[PURE_CLASSES + 1],
                          double* pmbg, double* pvwm, double* pvgm, double* pvcsf , 
                          double* pvbg , double* pvmeasurement, double* pbeta); */
 int Estimate_params_from_image3(Volume volume_inT1, Volume volume_inT2, Volume volume_inPD, 
-                         Volume volume_mask, char* segmentation_filename, pVector means[PURE_CLASSES + 1]
-                         ,pMatrix vars[PURE_CLASSES + 1] , pMatrix pvmeasurement);
+				Volume volume_mask, Volume volume_subcort, 
+				char* segmentation_filename, pVector means[PURE_CLASSES + 1],
+				pMatrix vars[PURE_CLASSES + 1] , pMatrix pvmeasurement);
+
 int Estimate_ml3(Volume volume_inT1, Volume volume_inT2,Volume volume_inPD,
-                  Volume volume_mask,Volume volume_seg,char ref_label,
-                 pVector mean,pMatrix var);
+		 Volume volume_mask,Volume volume_seg, Volume volume_subcort,
+		 char ref_label,pVector mean,pMatrix var);
+
 int Estimate_mve3(Volume volume_in, Volume volume_inT2,Volume volume_inPD,
                  Volume volume_mask,Volume volume_seg,char ref_label,
                   pVector mean,pMatrix var);
@@ -104,6 +109,9 @@ int Estimate_mve3(Volume volume_in, Volume volume_inT2,Volume volume_inPD,
 double* Collect_values3(Volume volume_inT1,Volume volume_inT2,Volume volume_inPD,
                         Volume volume_mask,Volume volume_seg,char ref_label,
                         long int* pcount);
+
+double* Collect_values3_subcortical(Volume volume_inT1,Volume volume_inT2,Volume volume_inPD,
+				    Volume volume_subcort,char ref_label, long int* pcount);
 
 int Estimate_params_from_tags3(char* tag_filename,Volume volume_inT1, Volume volume_inT2, Volume volume_inPD,
                                  pMatrix means[PURE_CLASSES + 1], pMatrix vars[PURE_CLASSES + 1]);  

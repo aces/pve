@@ -3,7 +3,7 @@
 
 #include <volume_io.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <stdio.h> 
 
 
 #define VERY_SMALL 1E-16
@@ -27,9 +27,9 @@
                                     part the measurement noise is from the less varying pure 
                                     tissue type */
 
-#define PURE_CLASSES 3   /* The number of pure tissue classes */
-#define MIXED_CLASSES 3  /* The number of mixed tissue classes */
-#define CLASSES 6        /* The number of mixed and pure tissue classes */
+#define PURE_CLASSES 4   /* The number of pure tissue classes */
+#define MIXED_CLASSES 5  /* The number of mixed tissue classes */
+#define CLASSES 9        /* The number of mixed and pure tissue classes */
 
 /* Labels: It is assumed that:   BGLABEL = 0;
    pure tissue labels are from 1 to 3;
@@ -43,9 +43,12 @@
 #define GMLABEL 2
 #define CSFLABEL 1
 #define BGLABEL 0
-#define GMCSFLABEL 4
-#define WMGMLABEL 5
-#define CSFBGLABEL 6
+#define GMCSFLABEL 5
+#define WMGMLABEL 6
+#define CSFBGLABEL 7
+#define SCLABEL 4
+#define WMSCLABEL 8
+#define SCGMLABEL 9
 /* Error messages */
 
 #define ERROR_TOO_FEW    "Too few input argumants. Try pve -help \n \n"
@@ -76,18 +79,20 @@ extern const char POTTS_LOOKUP_TABLE[CLASSES + 1][CLASSES + 1];
 
 void Display_help(); 
 int Get_params_from_file(char* fn, double* mean, double* var, double* pvmeasurement);
-int Estimate_params_from_image(Volume volume_in, Volume volume_mask, 
+int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volume_subcort,
                                char* segmentation_filename, double* mean, 
                                double* var , double* pvmeasurement);
 int Estimate_ml(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
                  double* mean,double* var);
 int Estimate_mve(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
                  double* mean,double* var);
-int Estimate_mcd(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
-                 double* mean,double* var);
+int Estimate_mcd(Volume volume_in,Volume volume_mask,Volume volume_seg,
+		 Volume volume_subcort,char ref_label, double* mean,double* var);
 
 double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
-                long int* pcount);
+		       long int* pcount);
+double* Collect_values_subcortical(Volume volume_in,Volume volume_subcort, char ref_label,
+		       long int* pcount);
 
 /* double Estimate_mean(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label);
 double Estimate_variance(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,double mean);
@@ -105,8 +110,8 @@ int Open_images(char* in_fn, char* mask_fn, Volume* pvolume_in,
 void Limit_0_1(double* x);
 
 void Normalize(double* pval, char n);
-
 char Maxarg(double* pval, char n);
+
 
 double Compute_Gaussian_likelihood(double value, double mean , double var);
 double Compute_marginalized_likelihood(double value, double mean1 , double mean2, 

@@ -34,7 +34,7 @@ printf(" Order of these is important!! \n");
 
 }
 
-
+     
 void Usage_info(char* pname) {
   
   (void) fprintf(stderr,
@@ -109,7 +109,7 @@ int Get_params_from_file(char* fn, double* mean , double* var, double* pvmeasure
    NEIGHBOURHOOD , some voxels on the borders of tissue types may be exluded from
    estimation.  */
 
-int Estimate_params_from_image(Volume volume_in, Volume volume_mask, 
+int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volume_subcort,
                                char* segmentation_filename, double* mean,
                                double* var, double* pvmeasurement) 
 {
@@ -139,7 +139,10 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask,
         return(4);
     }
     else {
-      if(Estimate_mcd(volume_in,volume_mask,volume_seg,c,&mean[c],&var[c]) != 0)
+      
+      if ((c == SCLABEL)&&(volume_subcort == NULL))
+	continue;	
+      if(Estimate_mcd(volume_in,volume_mask,volume_seg, volume_subcort,c,&mean[c],&var[c]) != 0)
         return(4);
     }
   }
@@ -149,9 +152,13 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask,
   printf("White matter mean: %f \n", mean[WMLABEL]);
   printf("Gray  matter mean: %f \n", mean[GMLABEL]);
   printf("CSF mean: %f \n", mean[CSFLABEL]);
+  if (volume_subcort != NULL)
+    printf("SC mean: %f \n", mean[SCLABEL]);
   printf("White matter variance: %f \n", var[WMLABEL]);
   printf("Gray matter variance: %f \n", var[GMLABEL]);
   printf("CSF variance: %f \n", var[CSFLABEL]);
+  if (volume_subcort != NULL)
+    printf("SC variance: %f \n", var[SCLABEL]);
   delete_volume(volume_seg);
   return(0);
 }
@@ -201,19 +208,22 @@ int Estimate_mve(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_
 
 /* MCD estimation of the means and variances. Returns 0 if succesful. */
 
-int Estimate_mcd(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
-                 double* mean,double* var)
+int Estimate_mcd(Volume volume_in,Volume volume_mask,Volume volume_seg,
+		 Volume volume_subcort, char ref_label, double* mean,double* var)
 {
   double* samples = NULL;
   long int nofsamples;
  
- 
-  samples = Collect_values(volume_in,volume_mask,volume_seg,ref_label,&nofsamples); 
+  if (ref_label == SCLABEL)
+      samples = Collect_values_subcortical(volume_in, volume_subcort, ref_label, &nofsamples);
+  else
+    samples = Collect_values(volume_in,volume_mask,volume_seg,ref_label,&nofsamples); 
+
   if(samples == NULL) return(1);
   if(least_trimmed_squares(samples, nofsamples, mean,var) != 0) return(2);
-  return(0);
-}  
 
+  return(0);
+}
 
 double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
                 long int* pcount) 
@@ -342,6 +352,89 @@ double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,cha
   delete_volume(volume_tmp);
   *pcount = count;    
   return(sample_vector);
+}
+
+
+double* Collect_values_subcortical(Volume volume_in,Volume volume_subcort, char ref_label,
+		       long int* pcount) {
+
+  int sizes[MAX_DIMENSIONS];
+  long int i;
+  int j,k;
+  long int count = 0;
+  long int sampleno;
+  double *sample_vector_tmp;
+  double *sample_vector;
+  double voxel_value_interval;
+
+  voxel_value_interval = (get_volume_real_max(volume_in) - get_volume_real_min(volume_in))
+    /DATATYPE_SIZE;
+  srand(time(0)); /* Set seed */
+  get_volume_sizes(volume_subcort,sizes);
+
+  for(i = 1; i < sizes[0] - 1;i++) {
+    for(j = 1;j < sizes[1] - 1;j++) {
+      for( k = 1; k < sizes[2] - 1;k++) {
+	if (get_volume_real_value(volume_subcort,i,j,k,0,0) > 1.5)
+	  count++;
+      }
+    }
+  }
+
+  if (count > 0) {
+    if(!(strcmp(ESTIMATOR,"MVE") || strcmp(ESTIMATOR,"MCD") ) && (count > MAXSAMPLES)) {
+    /* if we are using MVE or MCD estimator so 
+       1) we must get rid of some samples;
+       2) we must add little bit of noise to the other samples; */  
+      sample_vector_tmp = malloc(count * sizeof (double));
+      if(sample_vector_tmp == NULL) return(NULL);
+      sampleno = 0;
+      for(i = 1; i < sizes[0] - 1;i++) {
+	for(j = 1;j < sizes[1] - 1;j++) {
+	  for( k = 1; k < sizes[2] - 1;k++) {
+	    if(get_volume_real_value(volume_subcort,i,j,k,0,0) > 1.5) {
+	      sample_vector_tmp[sampleno] = get_volume_real_value(volume_in,i,j,k,0,0);
+	      sampleno = sampleno + 1;
+	    }
+	  }
+	}
+      }
+      sample_vector = malloc(MAXSAMPLES * sizeof(double));
+      for(i =0;i < MAXSAMPLES;i++) {
+	sampleno = rint(rand() *( (double) (MAXSAMPLES - 1) / RAND_MAX));
+	sample_vector[i] = sample_vector_tmp[sampleno];
+      }
+      free(sample_vector_tmp);
+      count = MAXSAMPLES;
+    }
+    else {
+      sample_vector = malloc(count * sizeof (double));
+      if(sample_vector == NULL) return(NULL);
+      sampleno = 0;
+      for(i = 1; i < sizes[0] - 1;i++) {
+        for(j = 1;j < sizes[1] - 1;j++) {
+          for( k = 1; k < sizes[2] - 1;k++) {
+            if(get_volume_real_value(volume_subcort,i,j,k,0,0) > 1.5) {
+              sample_vector[sampleno] = get_volume_real_value(volume_in,i,j,k,0,0);
+              sampleno = sampleno + 1;
+	    }
+          }
+        }
+      } 
+    }
+    if(!(strcmp(ESTIMATOR,"MVE") || strcmp(ESTIMATOR,"MCD") )) {
+      for(i = 0; i < count; i++) {
+        /* Add a bit of uniform random noise to the samples */
+        sample_vector[i] = sample_vector[i] + (rand() - RAND_MAX / 2)*  
+                                               voxel_value_interval/RAND_MAX;
+    
+      } 
+    }           
+  }
+
+  *pcount = count;    
+  return(sample_vector);
+         
 }
 
 /* Get parameters based on a tag_file */
@@ -490,6 +583,7 @@ void Normalize(double* pval, char n)
   }
 }
 
+
 /* Finds maximum argument out of the n possibilities */
 
 char Maxarg(double* pval,char n)
@@ -507,6 +601,7 @@ char Maxarg(double* pval,char n)
   }
   return(index);
 }
+
 
 /* -------------------------------------------------------------------
 Computes likelihood of value given parameters mean and variance. 
@@ -764,22 +859,32 @@ int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
         case WMLABEL: 
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,1.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
         case GMLABEL: 
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,1.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;                
         case CSFLABEL: 
 	     set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,1.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
+	case SCLABEL:
+	     set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,1.0);
+	     break;
         case WMGMLABEL: 
              t = (get_volume_real_value(volume_in,i,j,k,0,0) - mean[GMLABEL]) / 
                                        (mean[WMLABEL] - mean[GMLABEL]);
@@ -787,6 +892,7 @@ int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,t);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,1 - t);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break; 
         case GMCSFLABEL: 
              t = (get_volume_real_value(volume_in,i,j,k,0,0) - mean[CSFLABEL]) 
@@ -795,6 +901,7 @@ int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0, t);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,1 - t);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break; 
         case CSFBGLABEL:
              t = (get_volume_real_value(volume_in,i,j,k,0,0) - mean[BGLABEL]) / 
@@ -803,7 +910,26 @@ int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,t); 
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
+	case WMSCLABEL:
+	     t = (get_volume_real_value(volume_in,i,j,k,0,0) - mean[SCLABEL]) / 
+                                       (mean[WMLABEL] - mean[SCLABEL]);
+	     Limit_0_1(&t);
+             set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,t);
+             set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0); 
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,1 - t);	    
+             break;
+	case SCGMLABEL:
+	     t = (get_volume_real_value(volume_in,i,j,k,0,0) - mean[GMLABEL]) / 
+                                       (mean[SCLABEL] - mean[GMLABEL]);
+	     Limit_0_1(&t);
+             set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,1 - t);
+             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0); 
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,t);	    
+             break;	    
         default: return(1); break;
         }
       }
@@ -844,22 +970,32 @@ int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
         case WMLABEL: 
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,1.0);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
         case GMLABEL: 
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,1.0);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0);
+	     set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,0.0);
              break;                
         case CSFLABEL: 
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,1.0);
+             set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
+	case SCLABEL:
+	     set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,1.0);
+	     break;
         case WMGMLABEL: 
              value = get_volume_real_value(volume_in,i,j,k,0,0);
              maxvalue = -1.0;
@@ -880,6 +1016,7 @@ int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,t);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,1 - t);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,0.0);
              break; 
         case GMCSFLABEL: 
              value = get_volume_real_value(volume_in,i,j,k,0,0);
@@ -901,6 +1038,7 @@ int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0, t);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,1 - t);
+             set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,0.0);
              break; 
         case CSFBGLABEL:
              value = get_volume_real_value(volume_in,i,j,k,0,0);
@@ -922,6 +1060,51 @@ int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,t); 
+             set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,0.0);
+             break;
+	case WMSCLABEL:
+             value = get_volume_real_value(volume_in,i,j,k,0,0);
+             maxvalue = -1.0;
+             maxindex = 0;
+             for(n = 0;n < 101;n++) {
+               mean_tmp = (((double) n)/100)*mean[WMLABEL] + (1 - ((double) n)/100)*mean[SCLABEL];
+               var_tmp = pow(((double) n) / 100,2)*var[WMLABEL] + 
+                         pow(1- ((double) n) / 100,2)*var[SCLABEL] + 
+                         var_measurement;
+               prob = Compute_Gaussian_likelihood(value,mean_tmp,var_tmp);
+               if(prob > maxvalue) {
+                 maxvalue = prob;
+                 maxindex = n;
+               }
+	     }
+             
+             t = ((double) maxindex)/100; 
+             set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,t);
+             set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0); 
+             set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,1 - t);	    
+             break;
+	case SCGMLABEL:
+             value = get_volume_real_value(volume_in,i,j,k,0,0);
+             maxvalue = -1.0;
+             maxindex = 0;
+             for(n = 0;n < 101;n++) {
+               mean_tmp = (((double) n)/100)*mean[SCLABEL] + (1 - ((double) n)/100)*mean[GMLABEL];
+               var_tmp = pow(((double) n) / 100,2)*var[SCLABEL] + 
+                         pow(1- ((double) n) / 100,2)*var[GMLABEL] + 
+                         var_measurement;
+               prob = Compute_Gaussian_likelihood(value,mean_tmp,var_tmp);
+               if(prob > maxvalue) {
+                 maxvalue = prob;
+                 maxindex = n;
+               }
+	     }
+             
+             t = ((double) maxindex)/100;    
+             set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,1 - t);
+             set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0); 
+             set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,t);	    
              break;
         default: return(1); break;
         }

@@ -195,18 +195,21 @@ int Get_params_from_file3(char* fn, pVector means[PURE_CLASSES + 1],
 }
 
 int Estimate_params_from_image3(Volume volume_inT1,Volume volume_inT2,Volume volume_inPD,
-                                Volume volume_mask, 
-                               char* segmentation_filename, pVector mean[PURE_CLASSES + 1] ,
-                               pMatrix var[PURE_CLASSES + 1], pMatrix pvmeasurement) 
+                                Volume volume_mask, Volume volume_subcort, 
+				char* segmentation_filename, pVector mean[PURE_CLASSES + 1] ,
+				pMatrix var[PURE_CLASSES + 1], pMatrix pvmeasurement) 
 {
   Volume volume_seg;
   int sizes[MAX_DIMENSIONS];
   int sizes_seg[MAX_DIMENSIONS];
   char c,i;
 
+
   if(input_volume(segmentation_filename,3,NULL,NC_UNSPECIFIED,FALSE,0.0, 0.0, 
                  TRUE, &volume_seg, (minc_input_options *) NULL) != OK)
     return(1);
+
+
   if(get_volume_n_dimensions(volume_seg) != 3)
     return(2);
   get_volume_sizes( volume_inT1, sizes ); 
@@ -215,17 +218,25 @@ int Estimate_params_from_image3(Volume volume_inT1,Volume volume_inT2,Volume vol
       (sizes[2] == sizes_seg[2]))) return(3);
   
   /* Then start parameter estimation */ 
+
+
   for(c = 1; c < PURE_CLASSES + 1;c++) {
     if(!strcmp(ESTIMATOR,"ML")) {
-      if(Estimate_ml3(volume_inT1,volume_inT2,volume_inPD,volume_mask,
-         volume_seg,c,mean[c],var[c]) != 0) return(3);
-    }
-    
+
+      if ((c == SCLABEL)&&(volume_subcort == NULL))
+	continue;
+
+      if (Estimate_ml3(volume_inT1,volume_inT2,volume_inPD,volume_mask,
+		       volume_seg,volume_subcort,c,mean[c],var[c]) != 0) return(3);
+
+    }   
     else {
       if(Estimate_mve3(volume_inT1,volume_inT2,volume_inPD,volume_mask,
                     volume_seg,c,mean[c],var[c]) != 0) return(3);
     }
   }
+
+  
   SetZeroVector(mean[BGLABEL]);
   SetZero(var[BGLABEL]);
   for(i = 1;i < 4;i++) {
@@ -242,12 +253,20 @@ int Estimate_params_from_image3(Volume volume_inT1,Volume volume_inT2,Volume vol
   PrintVector(mean[GMLABEL]);
   printf("CSF mean:");
   PrintVector(mean[CSFLABEL]);
+  if (volume_subcort != NULL) {
+    printf("Subcortical mean:");
+    PrintVector(mean[SCLABEL]);
+  }
   printf("White matter variance:");
   PrintMatrix(var[WMLABEL]);
   printf("Gray matter variance:" );
   PrintMatrix(var[GMLABEL]);
   printf("CSF variance:");
   PrintMatrix(var[CSFLABEL]);
+  if (volume_subcort != NULL) {
+    printf("Subcortical variance:");
+    PrintMatrix(var[SCLABEL]);
+  }
   delete_volume(volume_seg);
   return(0);
 }
@@ -255,8 +274,8 @@ int Estimate_params_from_image3(Volume volume_inT1,Volume volume_inT2,Volume vol
 /* ML estimation of means and variances */
 
 int Estimate_ml3(Volume volume_inT1, Volume volume_inT2,Volume volume_inPD,
-                  Volume volume_mask,Volume volume_seg,char ref_label,
-                 pVector mean,pMatrix var)  
+		 Volume volume_mask,Volume volume_seg,Volume volume_subcort,
+		 char ref_label,pVector mean,pMatrix var)  
 { 
   double* samples = NULL;
   long int nofsamples;
@@ -264,8 +283,14 @@ int Estimate_ml3(Volume volume_inT1, Volume volume_inT2,Volume volume_inPD,
   Vector3D standardized_sample;
   Matrix3D tmpcov;
 
-  samples = Collect_values3(volume_inT1,volume_inT2,volume_inPD,
-                            volume_mask,volume_seg,ref_label,&nofsamples);
+  if (ref_label == SCLABEL) {
+    samples = Collect_values3_subcortical(volume_inT1,volume_inT2,volume_inPD,
+			      volume_subcort,ref_label,&nofsamples);   
+  }
+  else {
+    samples = Collect_values3(volume_inT1,volume_inT2,volume_inPD,
+			      volume_mask,volume_seg,ref_label,&nofsamples);
+  }
   if(samples == NULL) return(1);
   SetZeroVector(mean);
   for(i = 0;i < nofsamples;i++) {
@@ -273,6 +298,7 @@ int Estimate_ml3(Volume volume_inT1, Volume volume_inT2,Volume volume_inPD,
       mean[j] = mean[j] + samples[3*i + j];
     }
   }
+
   ScalarMultiplyVector(mean,(double) 1/nofsamples, mean); 
   SetZero(var);
   for(i = 0;i < nofsamples;i++) {
@@ -285,7 +311,10 @@ int Estimate_ml3(Volume volume_inT1, Volume volume_inT2,Volume volume_inPD,
    
   ScalarMultiply(var,(double) 1 / nofsamples, var);
   free(samples);
+
   return(0);
+
+
 }
 
 /* Mve estimation of the means and variances. */
@@ -452,7 +481,103 @@ double* Collect_values3(Volume volume_inT1,Volume volume_inT2,Volume volume_inPD
   return(sample_vector);
 }
 
+double* Collect_values3_subcortical(Volume volume_inT1,Volume volume_inT2,
+				    Volume volume_inPD, Volume volume_subcort,
+				    char ref_label,long int* pcount) 
+{
+  int sizes[MAX_DIMENSIONS];
+  long int i;
+  int j,k,i1,j1,k1;
+  long int count = 0;
+  long int sampleno;
+  BOOLEAN on_the_border;
+  double *sample_vector_tmp;
+  double *sample_vector;
+  double voxel_value_interval[3];
 
+  voxel_value_interval[0] = (get_volume_real_max(volume_inT1) - 
+                             get_volume_real_min(volume_inT1))/DATATYPE_SIZE;
+  voxel_value_interval[1] = (get_volume_real_max(volume_inT2) - 
+                             get_volume_real_min(volume_inT2))/DATATYPE_SIZE;
+  voxel_value_interval[2] = (get_volume_real_max(volume_inPD) - 
+                             get_volume_real_min(volume_inPD))/DATATYPE_SIZE;
+
+  srand(time(0)); /* Set seed */
+  get_volume_sizes( volume_subcort, sizes ); 
+
+  for(i = 1; i < sizes[0] - 1;i++) {
+    for(j = 1;j < sizes[1] - 1;j++) {
+      for( k = 1; k < sizes[2] - 1;k++) {
+	if (get_volume_real_value(volume_subcort,i,j,k,0,0) > 1.5)
+	  count++;
+      }
+    }
+  }
+
+  if(count > 0) {
+    if(!(strcmp(ESTIMATOR,"MVE") || strcmp(ESTIMATOR,"MCD") ) && (count > MAXSAMPLES)) {
+    /* if we are using MVE or MCD (not implemented) estimator so    
+     1) we must get rid of some samples;
+     2) we must add little bit of noise to the other samples; */  
+      sample_vector_tmp = malloc(count * 3 * sizeof (double)); /* reserve room for 3 values (T1,T2,PD) for each sample */
+      if(sample_vector_tmp == NULL) return(NULL);
+      sampleno = 0;
+      for(i = 1; i < sizes[0] - 1;i++) {
+        for(j = 1;j < sizes[1] - 1;j++) {
+          for( k = 1; k < sizes[2] - 1;k++) {
+            if(get_volume_real_value(volume_subcort,i,j,k,0,0) > 1.5) {
+              sample_vector_tmp[sampleno] = get_volume_real_value(volume_inT1,i,j,k,0,0);
+              sample_vector_tmp[sampleno + 1] = get_volume_real_value(volume_inT2,i,j,k,0,0);
+              sample_vector_tmp[sampleno + 2] = get_volume_real_value(volume_inPD,i,j,k,0,0);
+              sampleno = sampleno + 3;
+	    }
+          }
+        }
+
+      }
+      sample_vector = malloc(MAXSAMPLES * 3 * sizeof(double));
+      if(sample_vector == NULL) return(NULL);
+      for(i =0;i < MAXSAMPLES;i++) {
+        sampleno = rint(rand() *( (double) (MAXSAMPLES - 1) / RAND_MAX));
+        sample_vector[3 * i] = sample_vector_tmp[3 * sampleno];
+        sample_vector[3 * i + 1] = sample_vector_tmp[3 * sampleno + 1];
+        sample_vector[3 * i + 2] = sample_vector_tmp[3 * sampleno + 2];
+      }
+      free(sample_vector_tmp);
+      count = MAXSAMPLES;
+    }
+    else {
+      sample_vector = malloc(3 * count * sizeof (double));
+      sampleno = 0;
+      for(i = 1; i < sizes[0] - 1;i++) {
+        for(j = 1;j < sizes[1] - 1;j++) {
+          for( k = 1; k < sizes[2] - 1;k++) {
+            if(get_volume_real_value(volume_subcort,i,j,k,0,0) > 1.5) {
+              sample_vector[sampleno] = get_volume_real_value(volume_inT1,i,j,k,0,0);
+              sample_vector[sampleno + 1] = get_volume_real_value(volume_inT2,i,j,k,0,0);
+              sample_vector[sampleno + 2] = get_volume_real_value(volume_inPD,i,j,k,0,0);
+              sampleno = sampleno + 3;              
+	    }
+          }
+        }
+
+      }
+    }
+
+    if(!(strcmp(ESTIMATOR,"MVE")  || strcmp(ESTIMATOR,"MCD") )) {
+      for(i = 0; i < count; i++) {
+        for(j = 0;j < 3;j++) {
+        /* Add a bit of uniform random noise to the samples */
+          sample_vector[3*i + j] = sample_vector[3*i + j] + (rand() - RAND_MAX / 2)*  
+                                               voxel_value_interval[j]/RAND_MAX;
+        }
+      } 
+    }
+  }
+
+  *pcount = count;    
+  return(sample_vector);
+}
 
 
 /* Get parameters based on a tag_file */
@@ -1000,7 +1125,7 @@ int Compute_partial_volume_vectors3(Volume volume_inT1, Volume volume_inT2,
   Vector3D value;
   Vector3D diff1,diff2;
   Matrix3D var_tmp;
-  Matrix3D inv_var_wmgm,inv_var_gmcsf,inv_var_csfbg;
+  Matrix3D inv_var_wmgm,inv_var_gmcsf,inv_var_csfbg,inv_var_scgm,inv_var_wmsc;
 
   get_volume_sizes(volume_inT1,sizes);
    
@@ -1023,7 +1148,15 @@ int Compute_partial_volume_vectors3(Volume volume_inT1, Volume volume_inT2,
   AddMatrices(var_tmp,var_measurement,var_tmp);
   Invert(var_tmp,inv_var_csfbg);
 
+  AddMatrices(vars[SCLABEL],vars[GMLABEL],var_tmp);
+  ScalarMultiply(var_tmp,0.25,var_tmp);
+  AddMatrices(var_tmp,var_measurement,var_tmp);
+  Invert(var_tmp,inv_var_scgm);
 
+  AddMatrices(vars[SCLABEL],vars[GMLABEL],var_tmp);
+  ScalarMultiply(var_tmp,0.25,var_tmp);
+  AddMatrices(var_tmp,var_measurement,var_tmp);
+  Invert(var_tmp,inv_var_scgm);
 
   for( i = 0; i < sizes[0];i++) {
     for( j = 0;j < sizes[1];j++) {
@@ -1034,21 +1167,31 @@ int Compute_partial_volume_vectors3(Volume volume_inT1, Volume volume_inT2,
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
         case WMLABEL: 
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,1.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
         case GMLABEL: 
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,1.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;                
         case CSFLABEL: 
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,1.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
+             break;                
+        case SCLABEL: 
+             set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,1.0);
              break;
         case WMGMLABEL: 
              InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
@@ -1056,11 +1199,12 @@ int Compute_partial_volume_vectors3(Volume volume_inT1, Volume volume_inT2,
                               get_volume_real_value(volume_inPD,i,j,k,0,0));
              SubtractVectors(value,means[GMLABEL],diff1);
              SubtractVectors(means[WMLABEL],means[GMLABEL],diff2);
-             t = QuadraticForm2(inv_var_gmcsf,diff1,diff2)/QuadraticForm(inv_var_gmcsf,diff2);
+             t = QuadraticForm2(inv_var_gmcsf,diff1,diff2)/QuadraticForm(inv_var_wmgm,diff2);
              Limit_0_1(&t);
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,t);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,1 - t);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break; 
         case GMCSFLABEL: 
              InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
@@ -1073,6 +1217,7 @@ int Compute_partial_volume_vectors3(Volume volume_inT1, Volume volume_inT2,
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0, t);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,1 - t);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break; 
         case CSFBGLABEL:
              InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
@@ -1085,7 +1230,34 @@ int Compute_partial_volume_vectors3(Volume volume_inT1, Volume volume_inT2,
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,t); 
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
+        case WMSCLABEL: 
+             InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
+                              get_volume_real_value(volume_inT2,i,j,k,0,0),
+                              get_volume_real_value(volume_inPD,i,j,k,0,0));
+             SubtractVectors(value,means[SCLABEL],diff1);
+             SubtractVectors(means[WMLABEL],means[SCLABEL],diff2);
+             t = QuadraticForm2(inv_var_gmcsf,diff1,diff2)/QuadraticForm(inv_var_gmcsf,diff2);
+             Limit_0_1(&t);
+             set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,t);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,1 - t);
+             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
+             break; 
+        case SCGMLABEL: 
+             InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
+                              get_volume_real_value(volume_inT2,i,j,k,0,0),
+                              get_volume_real_value(volume_inPD,i,j,k,0,0));
+             SubtractVectors(value,means[GMLABEL],diff1);
+             SubtractVectors(means[SCLABEL],means[GMLABEL],diff2);
+             t = QuadraticForm2(inv_var_gmcsf,diff1,diff2)/QuadraticForm(inv_var_wmgm,diff2);
+             Limit_0_1(&t);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,t);
+             set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,1 - t);
+             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
+             break; 
         default: return(1); break;
         }
       }
@@ -1131,21 +1303,31 @@ int Compute_partial_volume_vectors3_ml(Volume volume_inT1, Volume volume_inT2,
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
         case WMLABEL: 
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,1.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
         case GMLABEL: 
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,1.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;                
         case CSFLABEL: 
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,1.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
+             break;
+        case SCLABEL: 
+             set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,1.0);
              break;
         case WMGMLABEL: 
              InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
@@ -1173,7 +1355,7 @@ int Compute_partial_volume_vectors3_ml(Volume volume_inT1, Volume volume_inT2,
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,t);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,1 - t);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);  
-            
+	     set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break; 
         case GMCSFLABEL: 
              InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
@@ -1200,7 +1382,8 @@ int Compute_partial_volume_vectors3_ml(Volume volume_inT1, Volume volume_inT2,
              t = ((double) maxindex)/100; 
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0, t);
-             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,1 - t);               
+             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,1 - t);      
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);         
              break; 
         case CSFBGLABEL:
              InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
@@ -1227,7 +1410,64 @@ int Compute_partial_volume_vectors3_ml(Volume volume_inT1, Volume volume_inT2,
              t = ((double) maxindex)/100;
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
-             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,t);     
+             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,t); 
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
+	     break;
+        case WMSCLABEL: 
+             InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
+                              get_volume_real_value(volume_inT2,i,j,k,0,0),
+                              get_volume_real_value(volume_inPD,i,j,k,0,0));
+             maxvalue = -1.0;
+             maxindex = 0;
+             for(n = 0;n < 101;n++) {
+               ScalarMultiplyVector(means[WMLABEL],((double) n)/100,mean_tmp1);
+               ScalarMultiplyVector(means[SCLABEL],1 - ((double) n)/100,mean_tmp2);
+               AddVectors(mean_tmp1,mean_tmp2,mean_tmp1);
+
+               ScalarMultiply(vars[WMLABEL],pow(((double) n)/100,2),var_tmp1);
+               ScalarMultiply(vars[SCLABEL],pow(1 - ((double) n)/100,2),var_tmp2);
+               AddMatrices(var_tmp1,var_tmp2,var_tmp1);
+               AddMatrices(var_tmp1,var_measurement,var_tmp1);
+               prob = Compute_Gaussian_likelihood3(value,mean_tmp1,var_tmp1);
+               if(prob > maxvalue) {
+                 maxvalue = prob;
+                 maxindex = n;
+               }
+	     }
+             
+             t = ((double) maxindex)/100;  
+             set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,t);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,1 - t);
+             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);  
+             set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);              
+             break;
+        case SCGMLABEL: 
+             InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
+                              get_volume_real_value(volume_inT2,i,j,k,0,0),
+                              get_volume_real_value(volume_inPD,i,j,k,0,0));
+             maxvalue = -1.0;
+             maxindex = 0;
+             for(n = 0;n < 101;n++) {
+               ScalarMultiplyVector(means[SCLABEL],((double) n)/100,mean_tmp1);
+               ScalarMultiplyVector(means[GMLABEL],1 - ((double) n)/100,mean_tmp2);
+               AddVectors(mean_tmp1,mean_tmp2,mean_tmp1);
+
+               ScalarMultiply(vars[SCLABEL],pow(((double) n)/100,2),var_tmp1);
+               ScalarMultiply(vars[GMLABEL],pow(1 - ((double) n)/100,2),var_tmp2);
+               AddMatrices(var_tmp1,var_tmp2,var_tmp1);
+               AddMatrices(var_tmp1,var_measurement,var_tmp1);
+               prob = Compute_Gaussian_likelihood3(value,mean_tmp1,var_tmp1);
+               if(prob > maxvalue) {
+                 maxvalue = prob;
+                 maxindex = n;
+               }
+	     }
+             
+             t = ((double) maxindex)/100;  
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,t);
+             set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,1 - t);
+             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);  
+	     set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);   
              break;
         default: return(1); break;
         }

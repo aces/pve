@@ -20,6 +20,6 @@ mni_REQUIRE_VOLUMEIO
 # check for perl
 AC_PATH_PROGS(PERL, perl5 perl )
 
-AC_CONFIG_FILES([Makefile scripts/Makefile])
+AC_CONFIG_FILES([Makefile scripts/Makefile models/Makefile])
 AC_OUTPUT
 
