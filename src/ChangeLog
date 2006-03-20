@@ -1,3 +1,7 @@
+2006-03-20	Claude Lepage	<claude@bic.mni.mcgill.ca>
+	* added scripts/pve_4classes.pl for CIVET and make version
+        at 1.1.1 for quarantine.
+
 2005-02-04	Vivek Singh	<vsingh@bic.mni.mcgill.ca>
 
 	* updated the latex documentation to correspond 

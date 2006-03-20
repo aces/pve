@@ -38,7 +38,7 @@ $mask = shift @leftOverArgs;
 $output = shift @leftOverArgs;
 $output .= "_cg.mnc";
 
-if (-e "${output}_cg.mnc" && !$Clobber) {
+if (-e ${output} && !$Clobber) {
     die "Output file $output exists and -clobber not specified\n";
 }
 

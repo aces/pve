@@ -1,3 +1,7 @@
+New in release 1.1.1:
+        * New Perl scripts pve_4classes.pl to merge sub-cortical gray
+        into white matter.
+
 New in release 1.0:
         * Perl scripts to handle the entire pipeline up to 
 	classification (pve_insect) as well as a script to rediscretize 
