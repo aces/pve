@@ -1,3 +1,8 @@
+New in release 1.1.2:
+        * Remove Spawn from pve_curvature.pl avec replace it with simple system
+        calls since Spawn was occasionnally crashing with no space left on device,
+        likely caused by Spawn running out of file buffers.
+
 New in release 1.1.1:
         * New Perl scripts pve_4classes.pl to merge sub-cortical gray
         into white matter.
