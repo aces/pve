@@ -1,4 +1,4 @@
-#!xPERLx -w
+#!xPERLx
 
 use strict;
 use warnings "all";
@@ -22,17 +22,27 @@ $me = &basename($0);
       "clobber existing files" ]
 );
 
+GetOptions( \@opt_table, \@ARGV )
+  or exit 1;
+
 &CreateInfoText;
 
 # define input variables:
 
-my $spect = $ARGV[1];
-my $class = $ARGV[2];
-my $mask = $ARGV[3];
-my $output = $ARGV[4];
+my $spect = $ARGV[0];
+my $class = $ARGV[1];
+my $mask = $ARGV[2];
+my $output = $ARGV[3];
 $output .= "_cg.mnc";
 
-### AddDefaultArgs('mincmath',['-clobber']) if ($Clobber);
+my @clobber_opt;
+if ($opt{clobber}) {
+    push @clobber_opt,"-clobber";
+}
+if (-e $output && !$opt{clobber} ) {
+    print "Output file $output exists and -clobber not specified\n";
+    die "Output file $output exists and -clobber not specified\n";
+}
 
 my $temp_dir = &tempdir( "$me-XXXXXXXX", TMPDIR => 1, CLEANUP => 1 );
 
@@ -125,7 +135,8 @@ my $kerndz = "$temp_dir/dz.kern";
 
 # create the combination grad+curve volume used for pve and mask out non GM/CSF
 &run( "minccalc","-expression", 'A[0]+0.5*A[1]',$curvelt0,$smoothlt0m3,$cplusg );
-&run( "minccalc","-clobber", "-expression", 'if (A[1]) A[0] else 0',$cplusg,$greycsfe,$output );
+&run( "minccalc", @clobber_opt, "-expression", 'if (A[1]) A[0] else 0',
+      $cplusg, $greycsfe, $output );
 
 sub CreateInfoText
 {
