@@ -1,9 +1,10 @@
-#!xPERLx -w
+#!@PERL@
 
 # takes PVE input (three different maps) and returns a discretized
 # classification image.
 
 use strict;
+use warnings "all";
 
 use MNI::Startup;
 use MNI::Spawn;

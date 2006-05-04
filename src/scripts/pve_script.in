@@ -1,6 +1,7 @@
-#!xPERLx -w
+#!@PERL@
 
 use strict;
+use warnings "all";
 
 use MNI::Startup;
 use MNI::Spawn;
@@ -36,7 +37,8 @@ my $use_subcort = 1;
 my $zip_files = 0;
 my $clobber = 0;
 
-my $sc_volume = "xPKGDATADIRx/gipt.mnc";
+use FindBin;
+my $sc_volume = "$FindBin::Bin/../share/@PACKAGE@/gipt.mnc";
 my $pve;
 my @pve_ops;
 

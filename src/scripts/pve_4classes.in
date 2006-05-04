@@ -1,6 +1,7 @@
-#!xPERLx -w
+#!@PERL@
 
 use strict;
+use warnings "all";
 
 use MNI::Startup;
 use MNI::Spawn;

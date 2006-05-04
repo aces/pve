@@ -18,8 +18,14 @@ smr_WITH_BUILD_PATH
 mni_REQUIRE_VOLUMEIO
 
 # check for perl
-AC_PATH_PROGS(PERL, perl5 perl )
+AC_PATH_PROGS(PERL, [perl] )
 
 AC_CONFIG_FILES([Makefile scripts/Makefile models/Makefile])
-AC_OUTPUT
+AC_OUTPUT(epm-header
+scripts/discretize_pve
+scripts/pve_4classes
+scripts/pve_curvature
+scripts/pve_insect
+scripts/pve_script
+)
 

@@ -1,4 +1,4 @@
-#!xPERLx
+#!@PERL@
 
 use strict;
 use warnings "all";

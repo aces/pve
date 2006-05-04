@@ -1,3 +1,7 @@
+2006-04-28	Claude Lepage	<claude@bic.mni.mcgill.ca>
+	* add epm-header; remove absolute path to gipt.mnc in pve_script;
+        change .pl to .in with xPERLx to @PERL@; clean-up MNI::DataDir.
+
 2006-04-04	Claude Lepage	<claude@bic.mni.mcgill.ca>
 	* Remove Spawn from pve_curvature.pl avec replace it with simple system
         calls since Spawn was occasionnally crashing with no space left on device,

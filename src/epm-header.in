@@ -1,0 +1,11 @@
+%product pve
+%copyright 2000-2006 Alex Zidjenbos
+%vendor McConnell Brain Imaging Centre
+%packager Claude Lepage <claude@bic.mni.mcgill.ca>
+%license COPYING
+%readme README
+%description Partial Volume Estimation
+%version @VERSION@
+%requires netcdf
+%requires minc
+%requires volume_io

@@ -1,4 +1,4 @@
-#!xPERLx -w
+#!@PERL@
  
 
 # adapted from insect.pl - does essentially the same thing but using a
@@ -9,13 +9,15 @@
 
 use MNI::Startup;
 use MNI::Spawn;
-use MNI::DataDir;
+#use MNI::DataDir;
 use MNI::FileUtilities qw(test_file);
 use MNI::PathUtilities qw(split_path);
 use Getopt::Tabular;
 use IO::File;
 
 use strict;
+use warnings "all";
+use FindBin;
 
 # User-modifiable globals
 my ($t1, $t2, $pd); # input files
@@ -25,8 +27,10 @@ my $outputBase;
 my($Usage, $Help);
 my $multispectral = 0;
 
-my $Template = MNI::DataDir::dir('ICBM') . 'icbm_template_1.00mm.mnc';
-my $modelDir = MNI::DataDir::dir('mni_autoreg');
+my $Template = "$FindBin::Bin/../share/ICBM/" . 'icbm_template_1.00mm.mnc';
+#my $Template = MNI::DataDir::dir('ICBM') . 'icbm_template_1.00mm.mnc';
+my $modelDir = "$FindBin::Bin/../share/mni_autoreg";
+#my $modelDir = MNI::DataDir::dir('mni_autoreg');
 my $model = 'icbm_avg_152_t1_tal_lin_symmetric';
 
 &Initialize;
