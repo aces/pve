@@ -1,0 +1,229 @@
+#!xPERLx -w
+ 
+
+# adapted from insect.pl - does essentially the same thing but using a
+# more complex algorithm to get at the classification. See the help
+# text/code for more details.
+#
+# Jason Lerch, 2004 <jason@bic.mni.mcgill.ca>
+
+use MNI::Startup;
+use MNI::Spawn;
+use MNI::DataDir;
+use MNI::FileUtilities qw(test_file);
+use MNI::PathUtilities qw(split_path);
+use Getopt::Tabular;
+use IO::File;
+
+use strict;
+
+# User-modifiable globals
+my ($t1, $t2, $pd); # input files
+my $outputBase;
+
+# Other globals
+my($Usage, $Help);
+my $multispectral = 0;
+
+my $Template = MNI::DataDir::dir('ICBM') . 'icbm_template_1.00mm.mnc';
+my $modelDir = MNI::DataDir::dir('mni_autoreg');
+my $model = 'icbm_avg_152_t1_tal_lin_symmetric';
+
+&Initialize;
+
+#####  output file names #####
+my $t1_nuc = "${outputBase}_t1_nuc_pretal.mnc";
+my $t2_nuc = "${outputBase}_t2_nuc_pretal.mnc";
+my $pd_nuc = "${outputBase}_pd_nuc_pretal.mnc";
+
+my $t1_tal_xfm = "${outputBase}_t1_tal.xfm";
+my $t2_to_t1_xfm = "${outputBase}_t2_to_t1.xfm";
+my $t2_tal_xfm = "${outputBase}_t2_tal.xfm";
+
+my $t1_tal = "${outputBase}_t1_tal.mnc";
+my $t2_tal = "${outputBase}_t2_tal.mnc";
+my $pd_tal = "${outputBase}_pd_tal.mnc";
+
+my $t1_renuc = "${outputBase}_t1_tal_nuc.mnc";
+my $t2_renuc = "${outputBase}_t2_tal_nuc.mnc";
+my $pd_renuc = "${outputBase}_pd_tal_nuc.mnc";
+
+my $cls = "${outputBase}_classfiy_clean.mnc";
+
+my $surface = "${outputBase}_surface_mask.obj";
+my $mask = "${outputBase}_mask.mnc";
+my $dilated_mask = "${outputBase}_dilated_mask.mnc";
+
+my $pve_base = "${outputBase}_pve";
+my $pve_gm = "${pve_base}_gm.mnc";
+my $pve_wm = "${pve_base}_wm.mnc";
+my $pve_csf = "${pve_base}_csf.mnc";
+
+my $pve_cls = "${outputBase}_pve_classified.mnc";
+
+##### Processing Starts Here #####
+
+# Step 1: first non-uniformity correction
+Spawn(['nu_correct_norm', $t1, $t1_nuc]);
+Spawn(['nu_correct_norm', $t2, $t2_nuc]) if ($multispectral);
+Spawn(['nu_correct_norm', $pd, $pd_nuc]) if ($multispectral);
+
+# Step 2: linear registration to talairach space
+Spawn(['mritotal', '-modeldir', $modelDir, '-model', $model, 
+       $t1_nuc, $t1_tal_xfm]);
+Spawn(['t2atot1', $t2_nuc, $t1_nuc, $t1_tal_xfm, $t2_to_t1_xfm, $t2_tal_xfm]) 
+    if ($multispectral);
+
+# Step 3: resampling into talairach space
+Spawn(['mincresample', '-transformation', $t1_tal_xfm, '-like',
+       $Template, $t1_nuc, $t1_tal]);
+Spawn(['mincresample', '-transformation', $t2_tal_xfm, '-like',
+       $Template, $t2_nuc, $t2_tal]) if ($multispectral);
+Spawn(['mincresample', '-transformation', $t2_tal_xfm, '-like',
+       $Template, $pd_nuc, $pd_tal]) if ($multispectral);
+
+# Step 4: second non-uniformity correction
+Spawn(['nu_correct', $t1_tal, $t1_renuc]);
+Spawn(['nu_correct', $t2_tal, $t2_renuc]) if ($multispectral);
+Spawn(['nu_correct', $pd_tal, $pd_renuc]) if ($multispectral);
+
+# Step 5: classification using classify_clean
+
+if ($multispectral) {
+    Spawn(['classify_clean', '-clean_tags', $t1_renuc, $t2_renuc, $pd_renuc,
+	   $cls]);
+}
+else {
+    Spawn(['classify_clean', '-clean_tags', $t1_renuc, $cls]);
+}
+
+# Step 6: mask the cortical surface
+Spawn(['cortical_surface', $cls, $surface, '1.5']);
+
+# Step 7: generate binary masks
+Spawn(['msd_masks', '-dilated_mask', $dilated_mask, $t1_renuc, 
+       $surface, $mask]); 
+
+# Step 8: run partial volume estimation
+if ($multispectral) {
+    Spawn(['pve3', '-image', $t1_renuc, $t2_renuc, $pd_renuc, $dilated_mask,
+	   $pve_base, $cls]);
+}
+else {
+    Spawn(['pve', '-image', $t1_renuc, $dilated_mask, $pve_base, $cls]);
+}
+
+# Step 9: turn PVE information into a discrete classification
+Spawn(['discretize_pve', $pve_csf, $pve_wm, $pve_gm, $pve_cls]);
+
+##### Initialization code to set all the options #####
+sub Initialize
+{
+   $, = ' ';     # set output field separator
+
+   # First, announce ourselves to stdout (for ease in later dissection
+   # of log files) -- unless STDOUT is a tty.
+   self_announce if $Verbose;
+
+   # Set defaults for the global variables.
+   $Verbose      = 1;
+   $Execute      = 1;
+   $Clobber      = 0;
+   $KeepTmp      = 0;
+
+   &CreateInfoText;
+
+   my(@argTbl) = (
+       @DefaultArgs,
+       ["Registration Options", "section"],
+       ["-modeldir", "string", 1, \$modelDir,
+	"set the default directory to search for model files [default: $modelDir"],
+       ["-model", "string", 1, \$model,
+	"set the base name of the fit model files [default: $model]"],
+   );
+   
+   my(@leftOverArgs);
+
+   GetOptions (\@argTbl, \@ARGV, \@leftOverArgs) || die "\n";
+   if ($#leftOverArgs == 1) {
+       # t1 only data
+       $t1 = shift @leftOverArgs;
+       $outputBase = shift @leftOverArgs;
+   }
+   elsif ($#leftOverArgs == 3) {
+       # multispectral data
+       $multispectral = 1;
+       $t1 = shift @leftOverArgs;
+       $t2 = shift @leftOverArgs;
+       $pd = shift @leftOverArgs;
+       $outputBase = shift @leftOverArgs;
+   }
+   else {
+       warn $Usage;
+       die "Incorrect number of arguments\n";
+   }
+   
+   # create the output directory if necessary
+   my($dir, $base, $ext) = split_path($outputBase, 'last', [qw(gz z Z)]);
+   if ($dir) {
+       system("mkdir -p $dir") unless (-d $dir);
+   }
+   
+   RegisterPrograms([qw(nu_correct_norm mritotal mincresample discretize_pve
+                       classify_clean pve pve3 nu_correct msd_masks
+                       cortical_surface surface_mask2 t2atot1)]) || die;
+
+   AddDefaultArgs('nu_correct_norm', ($Verbose) ? ['-verbose'] : ['-quiet']);
+   AddDefaultArgs('mritotal',        ($Verbose) ? ['-verbose'] : ['-quiet']);
+   AddDefaultArgs('mincresample',    ($Verbose) ? ['-verbose'] : ['-quiet']);
+   AddDefaultArgs('classify_clean',  ($Verbose) ? ['-verbose'] : ['-quiet']);
+
+   AddDefaultArgs('nu_correct_norm', ['-clobber']);
+   AddDefaultArgs('nu_correct',      ['-clobber']);
+   AddDefaultArgs('mritotal',        ['-clobber']);
+   AddDefaultArgs('mincresample',    ['-clobber']);
+   AddDefaultArgs('classify_clean',  ['-clobber']);
+
+   # Be strict about having programs registered
+   MNI::Spawn::SetOptions (strict => 2);
+}
+
+# create the help messages and such
+sub CreateInfoText
+{
+    $Usage = <<USAGE;
+Usage: $ProgramName [options] <input.mnc> <output_base> or
+       $ProgramName [options] <t1.mnc> <t2.mnc> <pd.mnc> <output_base>
+       $ProgramName -help for details
+USAGE
+
+    $Help = <<HELP;
+
+$ProgramName runs the revised INSECT classification, consisting of:
+
+    1. nu_correct + global intensity normalization
+    2. mritotal
+    3. mincresample
+    4. second nu_correct to remove residual artefacts
+    5. classify_clean
+    6. pve (partial volume estimation)
+    7. discretization of partial volume maps
+
+$ProgramName creates the output files based on the last argument
+ given. The output base can optionally include a non-existent
+ directory, in which case that directory will be created.
+HELP
+
+   Getopt::Tabular::SetHelp ($Help, $Usage);
+}
+
+sub OutputFile {
+    my ($base, $ext) = @_;
+
+    my $file = "$base$ext";
+
+    die "Output file $file exists; use -clobber to overwrite\n"
+	if (-e $file && ! $Clobber);
+
+    $file;
+}
