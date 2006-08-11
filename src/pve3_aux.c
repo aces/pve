@@ -368,6 +368,34 @@ double* Collect_values3(Volume volume_inT1,Volume volume_inT2,Volume volume_inPD
   voxel_value_interval[2] = (get_volume_real_max(volume_inPD) - 
                              get_volume_real_min(volume_inPD))/DATATYPE_SIZE;
   srand(time(0)); /* Set seed */
+
+  /* Special case to distinguish real CSF from background for t2 and pd.
+     For t1, CSF and BG are usually lumped together. This is fine since 
+     both have a small image value. For t2 and pd, BG is small and CSF is
+     large, so lumping them introduces a bias in the mean and variance.
+     In this case, we will distinguish labelled CSF/BG by looking if it 
+     has an image value above/below the mean value of the image. */
+  double t2_thresh = 0.0;
+  double pd_thresh = 0.0;
+  if( ref_label == CSFLABEL ) {
+    for(i = 1; i < sizes[0] - 1;i++) {
+      for(j = 1;j < sizes[1] - 1;j++) {
+        for( k = 1; k < sizes[2] - 1;k++) {
+          if(get_volume_real_value(volume_mask,i,j,k,0,0) > MASK_TR) {     /* Voxel in the brain */
+            int label = rint(get_volume_real_value(volume_seg,i,j,k,0,0));
+            if( label == WMLABEL || label == GMLABEL ) {
+              count++;
+              t2_thresh += get_volume_real_value(volume_inT2,i,j,k,0,0);
+              pd_thresh += get_volume_real_value(volume_inPD,i,j,k,0,0);
+            }
+          }
+        }
+      }
+    }
+    t2_thresh /= (double)count;
+    pd_thresh /= (double)count;
+    count = 0;
+  }
   
   for(i = 1; i < sizes[0] - 1;i++) {
     for(j = 1;j < sizes[1] - 1;j++) {
@@ -375,6 +403,13 @@ double* Collect_values3(Volume volume_inT1,Volume volume_inT2,Volume volume_inPD
         set_volume_real_value(volume_tmp,i,j,k,0,0,0);
         if(get_volume_real_value(volume_mask,i,j,k,0,0) > MASK_TR) {     /* Voxel in the brain */
           if(rint(get_volume_real_value(volume_seg,i,j,k,0,0)) == ref_label) {  /* And of right type */
+            /* If this is CSF, check if it is really CSF or BG based on t2 and pd. */
+            if( ref_label == CSFLABEL ) {
+              if( get_volume_real_value(volume_inT2,i,j,k,0,0) < t2_thresh ||
+                  get_volume_real_value(volume_inPD,i,j,k,0,0) < pd_thresh ) {
+                continue;   /* skip this BG voxel in calculation of mean for CSF */
+              }
+            }
 	    /* Check neigbourhood: Choices for neighbourhood are 6 and 26 neighbourhood or 
                no neighbourhood checking. 
                The choice is defined by the constant NEIGHBOURHOOD  */
@@ -783,7 +818,7 @@ void Limit_0_1(double* x)
 
 /* Normalizes n probalities to sum to one */
 
-void Normalize(double* pval, char n)
+int Normalize(double* pval, char n)
 
 { double sca = 0.0;
   char i;
@@ -795,6 +830,9 @@ void Normalize(double* pval, char n)
     for(i = 0;i < n;i++) {
       pval[i] = pval[i]/sca;
     }
+    return 0;
+  } else {
+    return 1;
   }
 }
 

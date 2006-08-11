@@ -294,6 +294,12 @@ int main(int argc, char** argv)
       return(2);  
     }
   }
+
+  /* Set boundary points for extreme high voxel values. */
+  char max_class = 0; 
+  for(c = 1; c < PURE_CLASSES; c++) {
+    if( mean[c] > mean[max_class] ) max_class = c;
+  }
   
   if (curve_image != NULL) {
     use_curve = TRUE;
@@ -302,8 +308,6 @@ int main(int argc, char** argv)
       return(1);
 
   }
-  
-
 
   /* Initialize required volumes and set their ranges for 
      getting rid of unncessary surprises */
@@ -356,7 +360,7 @@ int main(int argc, char** argv)
   changed_num = 0;
   changed_num_last = -1;
 
-  while(changed && (iteration < num_iterations)) {
+  while(changed && (iteration <= num_iterations)) {
     printf("Iteration %d \n",iteration);
 
 
@@ -374,7 +378,7 @@ int main(int argc, char** argv)
 		  sc_region = FALSE;
 	      }
               value  = get_volume_real_value(volume_in,i,j,k,0,0);
-              for(c = 1;c < PURE_CLASSES + 1;c++) {
+              for(c = 1;c < PURE_CLASSES + 1; c++) {
 	       		  
 		if ((c == SCLABEL)&&(!sc_region))
 		  val[c - 1] = 0;
@@ -407,8 +411,18 @@ int main(int argc, char** argv)
 								    var[CSFLABEL] ,var[BGLABEL], 
 								    var_measurement, INTERVALS );   
 	      
-	      Normalize(val,CLASSES);
-	      
+	      if( Normalize(val,CLASSES) ) {
+                // All values are VERY_SMALL so pick something.
+                // ignore min since it will be BG.
+                if( value > mean[max_class] ) {
+                  val[max_class-1] = 1.0;
+	          Normalize(val,CLASSES);
+                } else {
+                  printf( "Warning: Voxel (%d,%d,%d) out of range with value %g\n",
+                          i, j, k, val );
+                }
+              }
+
               for(c = 0;c < CLASSES;c++) {
                 set_volume_real_value(volume_likelihood[c], i , j , k, 0, 0, val[c]);
               }

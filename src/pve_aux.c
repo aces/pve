@@ -568,7 +568,7 @@ void Limit_0_1(double* x)
   ---------------------------------------------------------------------------- */
 /* Normalizes n probalities to sum to one */
 
-void Normalize(double* pval, char n)
+int Normalize(double* pval, char n)
 
 { double sca = 0.0;
   char i;
@@ -580,6 +580,9 @@ void Normalize(double* pval, char n)
     for(i = 0;i < n;i++) {
       pval[i] = pval[i]/sca;
     }
+    return 0;
+  } else {
+    return 1;
   }
 }
 

@@ -38,7 +38,7 @@ int main(int argc, char** argv)
   char tag_filename[255];
   char *ptag_filename = tag_filename;
 
-  int i,j,k;                                    /* Loop variables */
+  int i,j,k,im;                                  /* Loop variables */
   int error_code;  
   int sizes[MAX_DIMENSIONS];
   int changed_num;
@@ -319,6 +319,16 @@ int main(int argc, char** argv)
     }
   }
 
+  /* Set boundary points for extreme high voxel values. */
+  char max_class[3] = {0,0,0};
+  char min_class[3] = {0,0,0};
+  for( im = 0; im < 3; im++ ) {
+    for(c = 1; c < PURE_CLASSES; c++) {
+      if( mean[c][im] > mean[max_class[im]][im] ) max_class[im] = c;
+      if( mean[c][im] < mean[min_class[im]][im] ) min_class[im] = c;
+    }
+  }
+
   if (curve_image != NULL) {
     use_curve = TRUE;
     if(input_volume(curve_image,3,NULL,NC_UNSPECIFIED,FALSE,0.0, 0.0, 
@@ -326,7 +336,6 @@ int main(int argc, char** argv)
       return(1);
 
   }
-
 
   /* Initialize required volumes and set their ranges for 
      getting rid of unncessary surprises. */
@@ -379,11 +388,11 @@ int main(int argc, char** argv)
   changed_num  = 0;
   changed_num_last = -1;
   
-  while(changed && (iteration < num_iterations)) {
+  while(changed && (iteration <= num_iterations)) {
     printf("Iteration %d \n",iteration);
-
     /* Update the likelihoods with current parameters only if that is necessary */
     if(em || iteration == 1) {
+
       for( i = 0; i < sizes[0]; ++i) {
         for( j = 0; j < sizes[1]; ++j) {
           for( k = 0; k < sizes[2]; ++k ) {
@@ -398,7 +407,7 @@ int main(int argc, char** argv)
               intensity[0] = get_volume_real_value(volume_inT1,i,j,k,0,0);
               intensity[1] = get_volume_real_value(volume_inT2,i,j,k,0,0);
               intensity[2] = get_volume_real_value(volume_inPD,i,j,k,0,0);
-              for(c = 1;c < PURE_CLASSES + 1;c++) { 
+              for(c = 1;c < PURE_CLASSES + 1; c++) { 
 
 		if ((c == SCLABEL)&&(!sc_region))
 		  val[c - 1] = 0;
@@ -434,7 +443,25 @@ int main(int argc, char** argv)
               val[CSFBGLABEL - 1] = Compute_marginalized_likelihood3(intensity, mean[CSFLABEL], mean[BGLABEL], 
                                                             var[CSFLABEL] ,var[BGLABEL], 
                                                             var_measurement, INTERVALS );         
-              Normalize(val,CLASSES);
+              if( Normalize(val,CLASSES) ) {
+                // All values are VERY_SMALL so pick something. For tri-modal, this
+                // is a mess. It could be a value out of range (arteface) or a 
+                // conflicting value between modalities (blood vessel, for example).
+                // One simple solution would be to use the value from the classified 
+                // image but it is not always available. So do some simple range
+                // checking instead.
+
+                for( im = 0; im < 3; im++ ) {
+                  if( intensity[im] < mean[min_class[im]][im] ) {  
+                    val[BGLABEL-1] = 1.0;          /* make it background */
+                  }
+                  if( intensity[im] > mean[max_class[im]][im] ) {  
+                    val[max_class[im]-1] = 1.0;    /* make it the highest class */
+                  }
+                }
+                Normalize(val,CLASSES);
+                // NOTE: Maybe here we could recompute the marginalized likelihoods.
+              }
              
               for(c = 0;c < CLASSES;c++) {
                 set_volume_real_value(volume_likelihood[c], i , j , k, 0, 0, val[c]);

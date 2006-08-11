@@ -1,3 +1,7 @@
+New in release 1.1.3:
+ 	* Add end point range checking for voxel values out of range.
+	* Distinguish between real CSF and real BG in t2 and pd.
+
 New in release 1.1.2:
         * Remove Spawn from pve_curvature.pl avec replace it with simple system
         calls since Spawn was occasionnally crashing with no space left on device,

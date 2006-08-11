@@ -125,7 +125,7 @@ int Open_images3(char* inT1_fn, char* inT2_fn, char* inPD_fn,
    char Are_similar(char label1, char label2); */
 void Limit_0_1(double* x);
 
-void Normalize(double* pval,char  n);
+int Normalize(double* pval,char  n);
 char Maxarg(double* pval, char  n);
 
 double Compute_Gaussian_likelihood3(pVector value, pVector mean , pMatrix var);

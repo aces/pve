@@ -1,3 +1,8 @@
+2006-08-11	Claude Lepage	<claude@bic.mni.mcgill.ca>
+	* Add end point range checking for voxel values out of range;
+        Distinguish between real CSF and real BG in t2 and pd.
+	* Make version at 1.1.3 for quarantine.
+
 2006-04-28	Claude Lepage	<claude@bic.mni.mcgill.ca>
 	* add epm-header; remove absolute path to gipt.mnc in pve_script;
         change .pl to .in with xPERLx to @PERL@; clean-up MNI::DataDir.

@@ -109,7 +109,7 @@ int Open_images(char* in_fn, char* mask_fn, Volume* pvolume_in,
    char Are_similar(char label1, char label2) { return POTTS_LOOKUP_TABLE[label1][label2];} */
 void Limit_0_1(double* x);
 
-void Normalize(double* pval, char n);
+int Normalize(double* pval, char n);
 char Maxarg(double* pval, char n);
 
 
