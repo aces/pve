@@ -134,7 +134,7 @@ double Compute_marginalized_likelihood3(pVector value, pVector mean1 , pVector m
                                        pMatrix measurement_var,
                                        unsigned int nof_intervals);
 double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z, 
-                               double* slice_width, double beta, double same, double similar, 
+                               double* width_stencil, double beta, double same, double similar, 
                                double different, double prior, int* sizes);
 void Parameter_estimation3(Volume volume_inT1,Volume volume_inT2,Volume volume_inPD, Volume volume_mask, 
                          Volume probabilities[CLASSES],pVector* mean, pMatrix* var,

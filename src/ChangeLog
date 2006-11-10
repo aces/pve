@@ -1,3 +1,8 @@
+2006-11-10	Claude Lepage	<claude@bic.mni.mcgill.ca>
+	* Optimized Compute_mrf_probability by taking sqrt outside loop
+        (makes function 7 times faster!)
+	* Make version at 1.1.4 for quarantine.
+
 2006-08-11	Claude Lepage	<claude@bic.mni.mcgill.ca>
 	* Add end point range checking for voxel values out of range;
         Distinguish between real CSF and real BG in t2 and pd.

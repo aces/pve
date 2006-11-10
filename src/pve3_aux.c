@@ -932,10 +932,10 @@ double Compute_marginalized_likelihood3(pVector value, pVector mean1 , pVector m
 
  */
 double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z, 
-                               double* slice_width, double beta, double same, double similar, double different, 
+                               double* width_stencil, double beta, double same, double similar, double different, 
                                double prior, int* sizes)
 {
-  int i,j,k;
+  int i,j,k,ii;
   char label2;  
   double exponent, distance;
   double similarity_value;
@@ -946,6 +946,7 @@ double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z
   /* To determine if it's possible to get out of image limits. 
      If false (as it usually is) this saves the trouble calculating this 27 times */
  
+  ii = 0;
   exponent = 0;
   for(i = -1; i < 2; i++) {
     for(j = -1; j < 2; j++) {
@@ -969,12 +970,9 @@ double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z
            else if(Are_similar(label,label2)) similarity_value = similar;
            else similarity_value = different;
 
-           distance = sqrt(pow(slice_width[0] * abs(i),2) +
-                           pow(slice_width[1] * abs(j),2) +
-                           pow(slice_width[2] * abs(k),2));
-
-           exponent = exponent + similarity_value/distance;
+           exponent = exponent + similarity_value * width_stencil[ii];
 	 }
+         ii++;
       }
     }
   } 

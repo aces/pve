@@ -662,10 +662,10 @@ double Compute_marginalized_likelihood(double value, double mean1 , double mean2
  */
 
 double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z, 
-                               double* slice_width, double beta, double same, double similar, double different, 
-                               double prior, int* sizes)
+                               double* width_stencil, double beta, double same, double similar, 
+                               double different, double prior, int* sizes)
 {
-  int i,j,k;
+  int i,j,k,ii;
   char label2;  
   double exponent, distance;
   double similarity_value;
@@ -675,18 +675,18 @@ double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z
                   || (y == sizes[1] - 1) || (z == sizes[2] - 1); 
   /* To determine if it's possible to get out of image limits. 
      If not true (as it usually is) this saves the trouble calculating this 27 times */
- 
+
+  ii = 0; 
   exponent = 0;
   for(i = -1; i < 2; i++) {
     for(j = -1; j < 2; j++) {
       for(k = -1; k < 2; k++) {
-         if( i == 0 && j == 0 && k == 0 ) 
+         if( i == 0 && j == 0 && k == 0 ) {
            exponent = exponent + prior;
-         else {
+         } else {
            if(!on_the_border) { /* There's no danger of getting out of the image limits */
              label2 = get_volume_real_value(*pvolume, x + i, y + j , z + k,0,0);
-           }
-           else {
+           } else {
              if(x + i < 0 || y + j < 0 || z + k < 0 || x + i > sizes[0] - 1
                 || y + j > sizes[1] - 1 || z + k > sizes[2] - 1) {
                label2 = BGLABEL;
@@ -699,12 +699,9 @@ double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z
            else if(Are_similar(label,label2)) similarity_value = similar;
            else similarity_value = different;
 
-           distance = sqrt(pow(slice_width[0] * abs(i),2) +
-                           pow(slice_width[1] * abs(j),2) +
-                           pow(slice_width[2] * abs(k),2));
-
-           exponent = exponent + similarity_value/distance;
-	 }
+           exponent = exponent + similarity_value * width_stencil[ii];
+         }
+         ii++;
       }
     }
   } 

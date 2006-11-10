@@ -38,7 +38,7 @@ int main(int argc, char** argv)
   char *ptag_filename = tag_filename;
 
 
-  int i,j,k;                                    /* Loop variables */
+  int i,j,k,ii;                                    /* Loop variables */
   int error_code;  
   int sizes[MAX_DIMENSIONS];
   int changed_num;
@@ -122,6 +122,7 @@ int main(int argc, char** argv)
 #endif /* NOT_IMPL defined */
 
   double  slice_width[MAX_DIMENSIONS];
+  double  width_stencil[MAX_DIMENSIONS*MAX_DIMENSIONS];
 
   double val[CLASSES],mrf_probability[CLASSES],value; /*  Some temporary variables */
   int specified;
@@ -348,6 +349,22 @@ int main(int argc, char** argv)
   slice_width[0] = slice_width[0]/value;                    /* minimum is set to one.            */
   slice_width[1] = slice_width[1]/value;                    /* All this for simplification of    */ 
   slice_width[2] = slice_width[2]/value;                    /* usage of the MRFs.                */
+  ii = 0;
+  for(i = -1; i < 2; i++) {
+    for(j = -1; j < 2; j++) {
+      for(k = -1; k < 2; k++) {
+        if( i == 0 && j == 0 && k == 0 ) {
+          width_stencil[ii] = 0.0;
+        } else {
+          width_stencil[ii] = 1.0 / sqrt( pow(slice_width[0] * abs(i),2) +
+                                          pow(slice_width[1] * abs(j),2) +
+                                          pow(slice_width[2] * abs(k),2) );
+        }
+        ii++;
+      }
+    }
+  }
+
   printf("Same %lf \n",mrf_params[SAME]);
   printf("Similar %lf \n",mrf_params[SMLR]);
   printf("Different %lf \n",mrf_params[DIFF]);
@@ -441,6 +458,7 @@ int main(int argc, char** argv)
         }
       }
     }
+
     /* ICM step */  
     printf("ICM step \n");
     changed = FALSE;
@@ -489,9 +507,9 @@ int main(int argc, char** argv)
 		smlr = mrf_params[SMLR];
 	      else 
 		smlr = -1; 
-	      	      	      
+
 	      mrf_probability[c] = Compute_mrf_probability(c + 1,&volume_classified,i,j,k,
-							   slice_width, mrf_params[BETA], mrf_params[SAME], 
+							   width_stencil, mrf_params[BETA], mrf_params[SAME], 
 							   smlr, mrf_params[DIFF],pr_prior,sizes);	      	 
 	    }    
 	 
@@ -533,7 +551,7 @@ int main(int argc, char** argv)
         }
       }
     }
-    
+
     if (use_steady_state) {
 
       if ((changed_num_last > -1)&&(changed_num >= changed_num_last))
@@ -658,7 +676,6 @@ int main(int argc, char** argv)
   
   return(0);
 }
-
 
 /* Moved here to avoid multiple definitions */
 const char POTTS_LOOKUP_TABLE[CLASSES + 1][CLASSES + 1] = {{0, 0, 0, 0, 0, 0, 0, 1, 0, 0},

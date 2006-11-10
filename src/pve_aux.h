@@ -119,7 +119,7 @@ double Compute_marginalized_likelihood(double value, double mean1 , double mean2
                                        double measurement_var,
                                        unsigned int nof_intervals);
 double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z, 
-                               double* slice_width, double beta, double same, double similar, 
+                               double* width_stencil, double beta, double same, double similar, 
                                double different, double prior, int* sizes);
 
 void Parameter_estimation(Volume volume_in, Volume volume_mask, 
