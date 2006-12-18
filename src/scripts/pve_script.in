@@ -4,9 +4,11 @@ use strict;
 use warnings "all";
 
 use MNI::Startup;
+use MNI::FileUtilities;
 use MNI::Spawn;
 use Getopt::Tabular;
 use File::Basename; 
+
 
 my $help = <<HELP;
 
@@ -34,9 +36,13 @@ my $vol_classified = undef;
 my $vol_curvature = undef;
 my $vol_mask = undef;
 my $use_subcort = 1;
+my $t1_tal_nl_xfm = undef;
+my $iterate = 0;
 my $zip_files = 0;
 my $clobber = 0;
 
+# NOTE: This is an old mask for the sub-cortical brain structures. It 
+# should be regenerated using the new ICBM152 model.
 use FindBin;
 my $sc_volume = "$FindBin::Bin/../share/@PACKAGE@/gipt.mnc";
 my $pve;
@@ -50,6 +56,10 @@ my @options = (["-mask", "string", 1, \$vol_mask,
 		"specify a classified volume (required)","<classified.mnc>"],
 	       ['-subcortical|-nosubcortical','boolean', 1, \$use_subcort,
 		'use subcortical tissue class [default]'],
+	       ["-transform", "string",1, \$t1_tal_nl_xfm,
+		"non-linear transformation to map the subcortical tissue mask from stereotaxic space to subject","<t1_tal_nl.xfm>"],
+	       ['-iterate','boolean', 1, \$iterate,
+		'iteratively correct the mean and variance of tissue types'],
 	       ['-zip|-nozip','boolean',1, \$zip_files,
 		'gzip the outputted files [default: -nozip]'],
 	       ['-clobber|-noclobber','boolean',1,\$clobber,
@@ -58,7 +68,7 @@ my @options = (["-mask", "string", 1, \$vol_mask,
 
 GetOptions( \@options, \@ARGV ) || exit 1;
 
-RegisterPrograms(['pve','pve3','gzip']);
+RegisterPrograms(['pve','pve3','mincresample','gzip']);
 
 if ( @ARGV == 2 ){
   $pve = "pve";
@@ -83,10 +93,24 @@ if (defined($vol_curvature)) {
   push @pve_ops,$vol_curvature;
 }
 
+
 if ($use_subcort) {
+  my $sc_volume_tmp = $sc_volume;
+  # Apply non-linear transformation to sub-cortical mask to map it to subject.
+  if( defined($t1_tal_nl_xfm) ) {
+    # These are temporary files.
+    MNI::FileUtilities::check_output_path("${TmpDir}") or exit 1;
+    $sc_volume_tmp = "${TmpDir}/sc_volume_resampled.mnc";
+    Spawn(['mincresample', "-like", $vol_classified, "-nearest_neighbour",
+           "-transform", $t1_tal_nl_xfm, "-invert", $sc_volume, $sc_volume_tmp]);
+  }
   push @pve_ops,"-subcortical";
-  push @pve_ops,$sc_volume;
+  push @pve_ops,$sc_volume_tmp;
   push @outfiles,"${outpref}_sc.mnc";
+}
+
+if ($iterate) {
+  push @pve_ops,"-est_params";
 }
 
 if ($clobber) {

@@ -47,7 +47,6 @@ int main(int argc, char** argv)
   char c, new_tissue_class,current_tissue_class;
   int iteration;
   double curve_val;
-  static int DEBUG = 0;  
   double smlr;
   double subcort_val;
 
@@ -68,6 +67,7 @@ int main(int argc, char** argv)
   static char* mask_image = NULL;
   static char* curve_image = NULL;
   static char* subcort_image = NULL;
+  static int est_params = FALSE;
   static int em_t = FALSE;
   static int mlestimates_t = NOML;
   static int clobber = FALSE;
@@ -85,6 +85,8 @@ int main(int argc, char** argv)
      "Brain mask used to specify region over which pve will be performed"},
     {"-subcortical <subcort_mask.mnc>", ARGV_STRING, (char *) 1, (char *) &subcort_image,
      "Mask used to specify where subcortical estimation should be done"},
+    {"-est_params",ARGV_CONSTANT, (char *) TRUE, (char *) &est_params,
+     "Reestimate nuisance parameters every iteration"},
     {"-em",ARGV_CONSTANT, (char *) TRUE, (char *) &em_t,
      "Use expectation maximization in parameter estimation"},
     {"-noem",ARGV_CONSTANT, (char *) FALSE, (char *) &em_t,
@@ -133,16 +135,15 @@ int main(int argc, char** argv)
   
   
   Volume volume_likelihood[CLASSES]; /* Volumes for storing tissue type likelihoods. */
-  
 
   Volume volume_classified;  /* Classifications */
   Volume volume_curve; /* Curvature volume used for biasing CSF estimation */
-  Volume volume_count;  /*Volume containing a count of # of times voxel class has changed */
+  Volume volume_count; /*Volume containing a count of # of times voxel class has changed */
   Volume volume_subcort = NULL;
-  
+
   Volume volume_pve[PURE_CLASSES]; /* Volumes for partial volume estimates */
   Volume volume_pve_ml[PURE_CLASSES];  
- 
+
   /* Intialize nuisance parameters */
 #if defined(NOT_IMPL)
   pr_wm = 0.16667;      /* All tissue types are equally likely */
@@ -152,10 +153,11 @@ int main(int argc, char** argv)
   pr_gmcsf = 0.16667;
   pr_csfbg = 0.16667;
 #endif /* NOT_IMPL defined */
-  pr_prior = 0;  
+  pr_prior = 0;
+
   /* For producing necessary info to the outputfiles. */
   history = time_stamp(argc, argv);
-  
+
   if (ParseArgv(&argc, argv, argTable, 0))  {
     Usage_info(argv[0]);
     exit(EXIT_FAILURE);
@@ -224,27 +226,25 @@ int main(int argc, char** argv)
       }
     }
   }
-  
 
   if (argc != 3) {
     (void) fprintf(stderr,"Exactly one input file and one output prefix must be specified\n");
     Usage_info(pname);
     return(2);
   }
-  
+
   if (mask_image == NULL) {
     (void) fprintf(stderr,"A mask volume must be specified\n");
     Usage_info(argv[0]);
     return(2);
   }
-  
+
   specified = (param_file != NULL) + (seg_image != NULL) + (tag_file != NULL);
   if (specified != 1) {
     (void) fprintf(stderr,"Exactly one of -file, -image or -tags must be specified\n");
     Usage_info(pname);
     return(2);
   }
-    
 
   error_code = Open_images(argv[1],mask_image,&volume_in, &volume_mask);
   if (error_code != 0) {
@@ -253,14 +253,6 @@ int main(int argc, char** argv)
     return(2);
   }
 
-  if (subcort_image != NULL) {
-    use_subcort = TRUE;
-    if (input_volume(subcort_image,3,NULL,NC_UNSPECIFIED,FALSE,0.0, 0.0,
-		     TRUE, &volume_subcort, (minc_input_options *) NULL) != OK)
-      return (1); 
-  }
-  
-
   if (param_file != NULL) {
     error_code = Get_params_from_file(param_file,mean,var,&var_measurement);
     if(error_code != 0) {
@@ -268,8 +260,15 @@ int main(int argc, char** argv)
       fprintf(stderr,"Subfunction Get_params_from_file returned errorcode %d .\n",error_code);
       return(2);
     }
-  }
-  else if (seg_image != NULL) {
+  } else if (seg_image != NULL) {
+
+    /* subcortical only available when segmented image is given. */
+    if (subcort_image != NULL) {
+      use_subcort = TRUE;
+      if (input_volume(subcort_image,3,NULL,NC_UNSPECIFIED,FALSE,0.0, 0.0,
+		       TRUE, &volume_subcort, (minc_input_options *) NULL) != OK)
+        return (1); 
+    }
 
     error_code = Estimate_params_from_image(volume_in,volume_mask,volume_subcort,
 					    seg_image,mean,var,&var_measurement);   
@@ -279,8 +278,7 @@ int main(int argc, char** argv)
       fprintf(stderr,"Subfunction Estimate_params_from_image returned errorcode %d .\n",error_code);
       return(2);   
     }
-  }
-  else if (tag_file != NULL) {
+  } else if (tag_file != NULL) {
     if(strcmp(tag_file,"default")) {
       ptag_filename = strcpy(ptag_filename,tag_file);
     }
@@ -301,7 +299,7 @@ int main(int argc, char** argv)
   for(c = 1; c < PURE_CLASSES; c++) {
     if( mean[c] > mean[max_class] ) max_class = c;
   }
-  
+
   if (curve_image != NULL) {
     use_curve = TRUE;
     if(input_volume(curve_image,3,NULL,NC_UNSPECIFIED,FALSE,0.0, 0.0, 
@@ -311,7 +309,7 @@ int main(int argc, char** argv)
   }
 
   /* Initialize required volumes and set their ranges for 
-     getting rid of unncessary surprises */
+     getting rid of unncessary surprises. */
   for( c = 0;c < CLASSES;c++) {
     volume_likelihood[c] = copy_volume_definition(volume_in, NC_UNSPECIFIED, 
 	  FALSE, 0.0 , 0.0);  
@@ -336,7 +334,6 @@ int main(int argc, char** argv)
 	}
       }
     }
-
   }
 
   if (num_iterations > 0)
@@ -380,14 +377,14 @@ int main(int argc, char** argv)
   while(changed && (iteration <= num_iterations)) {
     printf("Iteration %d \n",iteration);
 
+    /* Update the likelihoods with current parameters only if that is necessary */
+    if(em || est_params || iteration == 1) {
 
-  /* Update the likelihoods with current parameters only if that is necessary */
-    if(em || iteration == 1) {
-      printf("Computing likelihoods. \n");
       for( i = 0; i < sizes[0]; ++i) {
         for( j = 0; j < sizes[1]; ++j) {
           for( k = 0; k < sizes[2]; ++k ) {
             if(get_volume_real_value(volume_mask,i,j,k,0,0) > MASK_TR) { 
+
 	      if (use_subcort) {
 		if (get_volume_real_value(volume_subcort,i,j,k,0,0) > 0.5)
 		  sc_region = TRUE;
@@ -410,8 +407,7 @@ int main(int argc, char** argv)
 								     var_measurement, INTERVALS );
 		val[WMSCLABEL - 1] = 0;
 		val[SCGMLABEL - 1] = 0;
-	      }
-	      else {
+	      } else {
 		val[WMSCLABEL - 1] = Compute_marginalized_likelihood(value,mean[WMLABEL], mean[SCLABEL],
 								     var[WMLABEL], var[SCLABEL], 
 								     var_measurement, INTERVALS );
@@ -424,9 +420,11 @@ int main(int argc, char** argv)
 	      val[GMCSFLABEL - 1] = Compute_marginalized_likelihood(value,mean[GMLABEL], mean[CSFLABEL],
 								    var[GMLABEL], var[CSFLABEL], 
 								    var_measurement, INTERVALS );
-	      val[CSFBGLABEL - 1] = Compute_marginalized_likelihood(value, mean[CSFLABEL], mean[BGLABEL], 
-								    var[CSFLABEL] ,var[BGLABEL], 
-								    var_measurement, INTERVALS );   
+//            val[CSFBGLABEL - 1] = Compute_marginalized_likelihood(value, mean[CSFLABEL], mean[BGLABEL], 
+//                                                                  var[CSFLABEL] ,var[BGLABEL], 
+//                                                                  var_measurement, INTERVALS );   
+              val[CSFBGLABEL - 1] = 0.0;  // don't allow BG inside mask
+
 	      
 	      if( Normalize(val,CLASSES) ) {
                 // All values are VERY_SMALL so pick something.
@@ -443,12 +441,13 @@ int main(int argc, char** argv)
               for(c = 0;c < CLASSES;c++) {
                 set_volume_real_value(volume_likelihood[c], i , j , k, 0, 0, val[c]);
               }
-              if(iteration == 1) {
+              /* Note: no need to change volume_classified here for est_params.
+                       It doesn't make any difference after convergence. */
+              if( iteration == 1 ) {
 		  c = Maxarg(val,CLASSES);
 		  set_volume_real_value(volume_classified, i , j , k, 0, 0, c);
               }
-            }
-            else {    /* if voxel is in the background, computations are not needed */
+            } else {    /* if voxel is in the background, computations are not needed */
               set_volume_real_value(volume_classified, i , j ,k , 0 , 0, 0);
               for(c = 0;c < CLASSES;c++) {
                 set_volume_real_value(volume_likelihood[c], i , j , k, 0, 0, 0.0);
@@ -459,17 +458,18 @@ int main(int argc, char** argv)
       }
     }
 
-    /* ICM step */  
+    /* ICM step */
     printf("ICM step \n");
     changed = FALSE;
     changed_num = 0;
     for(i = 0; i < sizes[0]; ++i) {
       for(j = 0; j < sizes[1]; ++j) {
         for(k = 0; k < sizes[2]; ++k) {
-	  current_tissue_class = get_volume_real_value(volume_classified,i,j,k,0,0);
 	  mrf_params[SMLR] = -1;
-	  
-	  if (current_tissue_class != 0) {
+          current_tissue_class = get_volume_real_value(volume_classified,i,j,k,0,0);
+
+// NOTE: A BG voxel can never change to a new type this way!!!! (use mask instead)
+	  if(current_tissue_class != 0) {
 
             if (use_subcort) {
               subcort_val = get_volume_real_value(volume_subcort,i,j,k,0,0);
@@ -481,32 +481,29 @@ int main(int argc, char** argv)
 
 	    //use curvature info to weight the MRF spatially if provided
 	    if (use_curve) {
-	      curve_val = get_volume_real_value(volume_curve,i,j,k,0,0);	      
-	    if (curve_val < 0) {
-	       mrf_params[SMLR] = curve_params[0]/(1+exp(curve_params[1]*(fabs(curve_val)-curve_params[2]))) 
-		  - curve_params[3];
-	      }
- 	    }
-	    for( c = 0;c < CLASSES;c++) {
-
+	      curve_val = get_volume_real_value(volume_curve,i,j,k,0,0);
+              if (curve_val < 0) {
+                mrf_params[SMLR] = curve_params[0]/(1+exp(curve_params[1]*(fabs(curve_val)-curve_params[2]))) 
+                  - curve_params[3];
+              }
+            }
+            for( c = 0;c < CLASSES;c++) {
 	      if (sc_region) {
 		if (c+1 == WMGMLABEL) {
 		  mrf_probability[c] = 0;
 		  continue;
 		}
-	      }
-	     
-	      if (!sc_region) {
+	      } else {
 		if ((c+1 == WMSCLABEL)||(c+1 == SCGMLABEL)||(c+1 == SCLABEL)) {
 		  mrf_probability[c] = 0;
 		  continue;
 		}
 	      }
 
-	      if (((c+1) == GMCSFLABEL)||((c+1) == CSFLABEL)) 
+	      if (((c+1) == GMCSFLABEL)||((c+1) == CSFLABEL))
 		smlr = mrf_params[SMLR];
-	      else 
-		smlr = -1; 
+	      else
+		smlr = -1;
 
 	      mrf_probability[c] = Compute_mrf_probability(c + 1,&volume_classified,i,j,k,
 							   width_stencil, mrf_params[BETA], mrf_params[SAME], 
@@ -519,15 +516,13 @@ int main(int argc, char** argv)
 
 	      if ((sc_region)&&(c+1 == WMGMLABEL))
 		continue;
-	      else if ((!sc_region)&&((c+1 == WMSCLABEL)||(c+1 == SCGMLABEL)))
+	      else if ((!sc_region)&&((c+1 == WMSCLABEL)||(c+1 == SCGMLABEL)||(c+1 == SCLABEL)))
 		continue;
-	  
-	      mrf_probability[c] = get_volume_real_value(volume_likelihood[c],i,j,k,0,0) * mrf_probability[c];
-	    }
-
-	    Normalize(mrf_probability,CLASSES);
-	    
-	    new_tissue_class = Maxarg(mrf_probability,CLASSES);
+              mrf_probability[c] = get_volume_real_value(volume_likelihood[c],i,j,k,0,0) * 
+                                 mrf_probability[c];
+            }
+            Normalize(mrf_probability,CLASSES);
+            new_tissue_class = Maxarg(mrf_probability,CLASSES);
 
             if(new_tissue_class != current_tissue_class) {
               set_volume_real_value(volume_classified, i, j, k, 0 ,0, new_tissue_class);
@@ -539,34 +534,38 @@ int main(int argc, char** argv)
               changed = TRUE;
 	      changed_num++;
 	    }
-	   
-            if(em) {    /* Store necessary probalities for the parameter estimation step */
+            if(em) {   /* Store necessary probabilities for the parameter estimation step */
               for(c = 0; c < CLASSES;c++) {
                 set_volume_real_value(volume_likelihood[c],i,j,k,0,0,mrf_probability[c]);
               }
-            }	    
-
+            }
           }
-
         }
       }
     }
 
-    if (use_steady_state) {
-
-      if ((changed_num_last > -1)&&(changed_num >= changed_num_last))
-	changed = FALSE;
-      else 
-	changed_num_last = changed_num;
-    }
     /* And finally re-estimate the nuisance parameters if necessary for each pure-tissue class */
     if(em) {
       Parameter_estimation(volume_in,volume_mask,volume_likelihood,mean,var,&var_measurement);
-    } 
+    } else if(est_params) {
+      est_params = Parameter_estimation_classified(volume_in,volume_mask,volume_subcort,
+                                                   volume_classified,mean,var,&var_measurement);
+    }
 
-    printf("changed_%d: %d\n",iteration,changed_num);        
+    if (use_steady_state) {
+      if ((changed_num_last > -1)&&(changed_num >= changed_num_last)&&(!est_params))
+        changed = FALSE;
+      else 
+	changed_num_last = changed_num;
+    }
+
+    printf("changed_%d: %d\n",iteration,changed_num);
+    fflush(stdout);
     iteration++;
   }
+  
+  /* Finally estimate the partial volume vectors 
+     but first some memory is freed.*/
   
   for(c = 0;c < CLASSES;c++) {
     delete_volume(volume_likelihood[c]);
@@ -582,7 +581,7 @@ int main(int argc, char** argv)
       set_volume_real_range( volume_pve[c],
                          LIKELIHOOD_RANGE_MIN , LIKELIHOOD_RANGE_MAX  );
     }
-  
+
     Compute_partial_volume_vectors(volume_in,volume_classified,volume_pve,mean);
   }
   if(mlestimates) {
@@ -595,13 +594,11 @@ int main(int argc, char** argv)
     }
     Compute_partial_volume_vectors_ml(volume_in,volume_classified,volume_pve_ml,mean,var,var_measurement);
   }
-  
 
-  printf("Writing necessary files");
   /* write necessary files */
   filename = strcpy(filename,argv[2]); 
   output_modified_volume(strcat(filename,"_disc.mnc"),
-                          NC_BYTE, FALSE, 0,CLASSES,volume_classified,argv[1],history,
+                         NC_BYTE, FALSE, 0,CLASSES,volume_classified,argv[1],history,
                          (minc_output_options *) NULL);
   if(!mlestimates_only) {
     filename = strcpy(filename,argv[2]); 
@@ -634,12 +631,12 @@ int main(int argc, char** argv)
 			   (minc_output_options *) NULL);
     filename = strcpy(filename,argv[2]); 
     output_modified_volume(strcat(filename,"_exactcsf.mnc"),
-                          NC_UNSPECIFIED, FALSE, 0,0,volume_pve_ml[SCLABEL - 1],argv[1],history,
+                          NC_UNSPECIFIED, FALSE, 0,0,volume_pve_ml[CSFLABEL - 1],argv[1],history,
 			   (minc_output_options *) NULL);
     if (use_subcort) {
       filename = strcpy(filename,argv[2]); 
       output_modified_volume(strcat(filename,"_exactsc.mnc"),
-			     NC_UNSPECIFIED, FALSE, 0,0,volume_pve[CSFLABEL - 1],argv[1],history,
+			     NC_UNSPECIFIED, FALSE, 0,0,volume_pve[SCLABEL - 1],argv[1],history,
 			     (minc_output_options *) NULL);
     } 
   } 
@@ -673,7 +670,7 @@ int main(int argc, char** argv)
       delete_volume(volume_pve_ml[c]);
     }
   }
-  
+
   return(0);
 }
 
@@ -688,5 +685,3 @@ const char POTTS_LOOKUP_TABLE[CLASSES + 1][CLASSES + 1] = {{0, 0, 0, 0, 0, 0, 0,
                                                            {1, 1, 0, 0, 0, 0, 0, 0, 0, 0},
 							   {0, 0, 0, 1, 1, 0, 0, 0, 0, 0},
 							   {0, 0, 1, 0, 1, 0, 0, 0, 0, 0}};
-
-

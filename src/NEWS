@@ -1,3 +1,15 @@
+New in release 1.1.5:
+        * Fixed bug in pve3 for WMGM variance
+        * Allow sub-cortical gray class for all options in pve and pve3
+        * Remove class CSFBG since there should not be any trace of BG
+          (or any of its derived classes) inside the masked region (assuming
+          the mask is good, of course)
+        * Add option to correct the mean and variance of tissue classes
+          during the iterations (helpful when initial classification from
+          classify_clean is lousy)
+        * Apply non-linear transformation to model (icbm152) on mask for
+          sub-cortical tissue (in pve_script)
+
 New in release 1.1.4:
         * Optimized Compute_mrf_probability by taking sqrt outside loop
         (makes pve zippy fast!)

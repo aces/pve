@@ -12,6 +12,9 @@
 #define MASK_TR  0.5           /* Values below this constant in the volume_mask
                                  indicate that corresponding voxels are of non brain
                                  tissue. */
+#define SC_TR  1.5             /* Values below this constant in the volume_subcort
+                                 indicate that corresponding voxels are not subcortical. */
+
 #define INTERVALS 50           /* For numerical integration */
 #define MAX_ITERATIONS 20      /* Maximum number of iterations of ICM */
 #define LIKELIHOOD_RANGE_MIN 0.0
@@ -31,7 +34,7 @@
                              in the single spectral is still a good choice. */
 
 #define MEASUREMENT_FRACTION 0.5 /* if the model with both measurent noise and 
-                                    psysiological noise is used, this defines how big
+                                    physiological noise is used, this defines how big
                                     part the measurement noise is from the less varying pure 
                                     tissue type */
 
@@ -66,7 +69,7 @@
 #define ERROR_PARAMS_FILE "Problem with parameters file." 
 #define ERROR_INPUT_FILE "Unable to open the input file or the brainmask file."
 #define ERROR_PARAMS_IMAGE "Unable to estimate parameters based on the segmented image."
-#define ERROR_PARAMS_TAGS "Unable to estimate parameters based on tags points."
+#define ERROR_PARAMS_TAG "Unable to estimate parameters based on tag points."
 #define ERROR_SECOND_ARG "First argument must -help, -file or -cl. \n \n"
 
 #define NOML 0
@@ -103,8 +106,8 @@ int Estimate_ml3(Volume volume_inT1, Volume volume_inT2,Volume volume_inPD,
 		 char ref_label,pVector mean,pMatrix var);
 
 int Estimate_mve3(Volume volume_in, Volume volume_inT2,Volume volume_inPD,
-                 Volume volume_mask,Volume volume_seg,char ref_label,
-                  pVector mean,pMatrix var);
+                  Volume volume_mask,Volume volume_seg, Volume volume_subcort,
+                  char ref_label, pVector mean,pMatrix var);
 
 double* Collect_values3(Volume volume_inT1,Volume volume_inT2,Volume volume_inPD,
                         Volume volume_mask,Volume volume_seg,char ref_label,
@@ -139,6 +142,9 @@ double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z
 void Parameter_estimation3(Volume volume_inT1,Volume volume_inT2,Volume volume_inPD, Volume volume_mask, 
                          Volume probabilities[CLASSES],pVector* mean, pMatrix* var,
                          pMatrix var_measurement);
+int Parameter_estimation_classified3(Volume volume_inT1, Volume volume_inT2, Volume volume_inPD,
+                                     Volume volume_mask, Volume volume_subcort, Volume classified,
+                                     pVector mean[4], pMatrix var[4], pMatrix var_measurement);
 
 int Compute_partial_volume_vectors3(Volume volume_inT1, Volume volume_inT2, 
                                     Volume volume_inPD, Volume volume_classified,

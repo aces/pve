@@ -1,3 +1,16 @@
+2006-12-15	Claude Lepage	<claude@bic.mni.mcgill.ca>
+	* Fixed bug in pve3 for WMGM variance
+	* Allow sub-cortical gray class for all options in pve and pve3
+	* Remove class CSFBG since there should not be any trace of BG
+          (or any of its derived classes) inside the masked region (assuming
+          the mask is good, of course)
+	* Add option to correct the mean and variance of tissue classes 
+          during the iterations (helpful when initial classification from
+          classify_clean is lousy)
+	* Apply non-linear transformation to model (icbm152) on mask for
+          sub-cortical tissue (in pve_script)
+	* Make version at 1.1.5 for quarantine.
+
 2006-11-10	Claude Lepage	<claude@bic.mni.mcgill.ca>
 	* Optimized Compute_mrf_probability by taking sqrt outside loop
         (makes function 7 times faster!)

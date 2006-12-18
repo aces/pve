@@ -11,6 +11,9 @@
 #define MASK_TR  0.5           /* Values below this constant in the volume_mask
                                  indicate that corresponding voxels are of non brain
                                  tissue. */
+#define SC_TR  1.5             /* Values below this constant in the volume_subcort
+                                 indicate that corresponding voxels are not subcortical. */
+
 #define INTERVALS 50           /* For numerical integration */
 #define MAX_ITERATIONS 20      /* Maximum number of iterations of ICM */
 #define LIKELIHOOD_RANGE_MIN 0.0
@@ -82,10 +85,10 @@ int Get_params_from_file(char* fn, double* mean, double* var, double* pvmeasurem
 int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volume_subcort,
                                char* segmentation_filename, double* mean, 
                                double* var , double* pvmeasurement);
-int Estimate_ml(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
-                 double* mean,double* var);
-int Estimate_mve(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
-                 double* mean,double* var);
+int Estimate_ml(Volume volume_in,Volume volume_mask,Volume volume_seg,Volume volume_subcort,
+                char ref_label, double* mean,double* var);
+int Estimate_mve(Volume volume_in,Volume volume_mask,Volume volume_seg,Volume volume_subcort,
+                 char ref_label, double* mean,double* var);
 int Estimate_mcd(Volume volume_in,Volume volume_mask,Volume volume_seg,
 		 Volume volume_subcort,char ref_label, double* mean,double* var);
 
@@ -125,6 +128,9 @@ double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z
 void Parameter_estimation(Volume volume_in, Volume volume_mask, 
                          Volume probabilities[CLASSES],double* mean, double* var,
                          double* var_measurement);
+int Parameter_estimation_classified(Volume volume_in, Volume volume_mask, 
+                                    Volume volume_subcort, Volume classified, 
+                                    double* mean, double* var, double * var_measurement );
 int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
                                    Volume volume_pve[PURE_CLASSES], double* mean);
 int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified,
