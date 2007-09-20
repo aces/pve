@@ -668,88 +668,93 @@ intensity value) that is composed of t * tissue1 and (1 - t)* tissue2 becomes :
 y = t*x1 + (1 - t)*x2 + xm,
 x1 ~ N(mean1,var1) , x2 ~ N(mean2,var2) , xm ~ N(0,measurement_var).
 
-Note: The numerical integration routine used by the 
-function is primitive , but so is the mankind...
+Note: Use Gauss-Legendre quadrature of order 7, with four intervals.
 
 */
 
 double Compute_marginalized_likelihood(double value, double mean1 , double mean2, 
                                        double var1, double var2, 
-                                       double measurement_var, 
-                                       unsigned int nof_intervals)
+                                       double measurement_var ) {
 
-{ 
-  double lh, tmean , tvar, t, interval_len;
-  int i;  
-  
-  interval_len = (double) 1 / nof_intervals;
-  lh = 0;
+  double gl4_pt[] = { -0.861136311594, -0.339981043585,
+                       0.339981043585,  0.861136311594 };
+  double gl4_wgt[] = { 0.347854845137, 0.652145154863,
+                       0.652145154863, 0.347854845137 };
+
+  double lh, tmean , tvar, t, t1, t2, interval_len;
+  int i, k;
+
+  int nof_intervals = 4; 
+  interval_len = (double) 1.0 / nof_intervals;
+  lh = 0.0;
+  t1 = 0.0;
   for(i = 0; i < nof_intervals; i++) {
-    t = (i + 0.5) * interval_len;
-    tmean = t * mean1 + ( 1 - t ) * mean2;
-    tvar = pow(t,2) * var1 + pow((1 - t),2) * var2 + measurement_var;
-    lh = lh + Compute_Gaussian_likelihood(value, tmean,tvar)*interval_len;
+    t2 = t1 + interval_len;
+    for( k = 0; k < 4; k++ ) {
+      t = 0.5 * ( interval_len * gl4_pt[k] + t1 + t2 );
+      tmean = mean2 + t * ( mean1 - mean2 );
+      tvar = measurement_var + var2 + t * ( -var2 - var2 + t * ( var1 + var2 ) );
+      lh += gl4_wgt[k] * Compute_Gaussian_likelihood( value, tmean, tvar );
+    }
+    t1 += interval_len;
   }
+  lh *= 0.5 * interval_len;
+
   return(lh);
- }
+}
 
 /* Computes prior probalibility of a voxel have a certain label given the neighbourhood labels.
    Takes classified volume and three coordinates.
     The first argument is of course the label under investigation.
    prior is the prior probability of the label to occur.
    Integers same , similar and different and double beta specify the MRF.
-   on_the_border and sizes are used detect when we are on image borders and prevent nasty
-   segmentation faults.
-
+   No need to check for on_the_border as this is checked in the likelyhood loop.
  */
 
-double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z, 
-                               double* width_stencil, double beta, double same, double similar, 
-                               double different, double prior, int* sizes)
-{
-  int i,j,k,ii;
-  char label2;  
-  double exponent, distance;
-  double similarity_value;
-  char on_the_border;
+void Compute_mrf_probability(double* mrf_probability, Volume* pvolume, int x, int y , int z, 
+                             double* width_stencil, double beta, double same, double similar, 
+                             double different, double prior ) {
 
-  on_the_border = (x == 0) || (y == 0) || (z == 0) || (x == sizes[0] - 1) 
-                  || (y == sizes[1] - 1) || (z == sizes[2] - 1); 
-  /* To determine if it's possible to get out of image limits. 
-     If not true (as it usually is) this saves the trouble calculating this 27 times */
+  int i,j,k,ii;
+  char label, label2;  
+  double similarity_value;
+
+  for( label = 0; label < CLASSES; label++ ) {
+    mrf_probability[label] = 0;
+  }
 
   ii = 0; 
-  exponent = 0;
   for(i = -1; i < 2; i++) {
     for(j = -1; j < 2; j++) {
       for(k = -1; k < 2; k++) {
-         if( i == 0 && j == 0 && k == 0 ) {
-           exponent = exponent + prior;
-         } else {
-           if(!on_the_border) { /* There's no danger of getting out of the image limits */
-             label2 = get_volume_real_value(*pvolume, x + i, y + j , z + k,0,0);
-           } else {
-             if(x + i < 0 || y + j < 0 || z + k < 0 || x + i > sizes[0] - 1
-                || y + j > sizes[1] - 1 || z + k > sizes[2] - 1) {
-               label2 = BGLABEL;
-             }
-             else {
-               label2 = get_volume_real_value(*pvolume, x + i, y + j , z + k,0,0);
-             }
-           }    
-           if(Are_same(label,label2)) similarity_value = same;
-           else if(Are_similar(label,label2)) similarity_value = similar;
-           else similarity_value = different;
-
-           exponent = exponent + similarity_value * width_stencil[ii];
-         }
-         ii++;
+        if( i == 0 && j == 0 && k == 0 ) {
+          for( label = 0; label < CLASSES; label++ ) {
+            mrf_probability[label] += prior;
+          }
+        } else {
+          label2 = get_volume_real_value(*pvolume, x + i, y + j , z + k,0,0);
+          for( label = 0; label < CLASSES; label++ ) {
+            if(Are_same(label+1,label2)) {
+              similarity_value = same;
+            } else if(Are_similar(label+1,label2)) {
+              if (((label+1) == GMCSFLABEL)||((label+1) == CSFLABEL)) {
+                similarity_value = similar;
+              } else {
+                similarity_value = -1;
+              }
+            } else {
+              similarity_value = different;
+            }
+            mrf_probability[label] += similarity_value * width_stencil[ii];
+          }
+        }
+        ii++;
       }
     }
   } 
-  
-  return(exp(- ( beta* exponent)));  
- 
+  for( label = 0; label < CLASSES; label++ ) {
+    mrf_probability[label] = exp( -beta * mrf_probability[label] );
+  }
 
 } 
 

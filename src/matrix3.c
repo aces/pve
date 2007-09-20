@@ -33,24 +33,23 @@ void PrintVector(pVector pv)
   printf("\n %f %f %f \n",pv[0],pv[1],pv[2]);
 }
 
+/* Sets a matrix to which pm points to zero */
 
 void SetZero(pMatrix pm)
 {
-  char i,j;
-  for(i = 1;i < 4;i++) {
-    for(j = 1; j < 4;j++) {
-      SetElement(pm,i,j,0);
-    }
+  char i;
+  for(i = 0;i < 9;i++) {
+    pm[i] = 0;
   }
 }
 
+/* Copies sourcem to targetm */
+
 void CopyMatrix(pMatrix sourcem,pMatrix targetm)
 {
-  char i,j;
-  for(i = 1;i < 4;i++) {
-    for(j = 1; j < 4;j++) {
-      SetElement(targetm,i,j,GetElement(sourcem,i,j));
-    }
+  char i;
+  for(i = 0;i < 9;i++) {  
+    targetm[i] = sourcem[i];
   }
 }
 
@@ -86,12 +85,10 @@ void ScalarMultiplyVector(pVector pv1,double scalar, pVector result)
 
 void ScalarMultiply(pMatrix pm1,double scalar, pMatrix result)
 {
-  char i1,i2;
+  char i;
 
-  for(i1 = 1;i1 < 4;i1++) {
-    for(i2 = 1;i2 < 4;i2++) {
-      SetElement(result,i1,i2,scalar * GetElement(pm1,i1,i2));
-    }
+  for(i = 0;i < 9;i++) {
+    result[i] = scalar * pm1[i];
   }
 }
 
@@ -113,24 +110,22 @@ void SubtractVectors(pVector v1, pVector v2, pVector result)
 
 void AddMatrices(pMatrix pm1, pMatrix pm2, pMatrix result)
 {
-  char i1,i2;
+  char i;
 
-  for(i1 = 1;i1 < 4;i1++) {
-    for(i2 = 1;i2 < 4;i2++) {
-      SetElement(result,i1,i2,GetElement(pm1,i1,i2) + GetElement(pm2,i1,i2));
-    }
+  for(i = 0;i < 9;i++) {
+    result[i] = pm1[i] + pm2[i];
   }
 
 }
 
+/* Computes result = pm1 - pm2 */
+
 void SubtractMatrices(pMatrix pm1, pMatrix pm2, pMatrix result)
 {
-  char i1,i2;
+  char i;
 
-  for(i1 = 1;i1 < 4;i1++) {
-    for(i2 = 1;i2 < 4;i2++) {
-      SetElement(result,i1,i2,GetElement(pm1,i1,i2) - GetElement(pm2,i1,i2));
-    }
+  for(i = 0;i < 9;i++) {
+    result[i] = pm1[i] - pm2[i];
   }
 
 }
@@ -177,19 +172,24 @@ double QuadraticForm2(pMatrix pm, pVector v1, pVector v2)
   return(d);
 }
 
+/* returns 1 if a matrix is zero and 0 otherwise*/
+/* Old version contained a bug. Returned 1 if any of the components of the matrix was zero, */ 
+/* which (I guess) was not meant to be. */
+
 int IsZero(pMatrix pm)
 {
-  int return_value  = 0;
+  int return_value  = 1;
   char i,j;
 
   for(i = 1;i < 4;i++) {
     for( j = 1;j < 4;j++) {
-      if(fabs(GetElement(pm,i,j)) < VERY_SMALL) return_value = 1;
+      if(fabs(GetElement(pm,i,j)) > VERY_SMALL) return_value = 0;
     }
   }
   return(return_value);
 }
 
+/* Tests if the matrix pointed by pm is symmetric */
 
 int IsSymmetric(pMatrix pm) 
 {
@@ -201,6 +201,7 @@ int IsSymmetric(pMatrix pm)
   else return(0);
 
 }
+/* Tests if the matrix pointed by pm is positive definite */
 
 int IsPositiveDefinite(pMatrix pm) 
 {
@@ -234,6 +235,9 @@ double Determinant(pMatrix pm)
 
 }
 
+/* Computes the inverse of the matrix. Retruns 1 if matrix is nearly singular and 0 if it's ok. */
+ 
+
 int Invert(pMatrix pm, pMatrix pinvm) 
 {
   double d;
@@ -242,35 +246,35 @@ int Invert(pMatrix pm, pMatrix pinvm)
   d = Determinant(pm);
   if( fabs(d) <  VERY_SMALL) {
     return(1);
-  }
-  else {
+  } else {
+    d = 1.0 / d;
     tmp = Determinant2x2(GetElement(pm,2,2),GetElement(pm,2,3),
                          GetElement(pm,3,2),GetElement(pm,3,3));
-    SetElement(pinvm,1,1,tmp / d);
+    SetElement(pinvm,1,1,tmp * d);
     tmp = Determinant2x2(GetElement(pm,1,3),GetElement(pm,1,2),
                          GetElement(pm,3,3),GetElement(pm,3,2));
-    SetElement(pinvm,1,2,tmp / d);
+    SetElement(pinvm,1,2,tmp * d);
     tmp = Determinant2x2(GetElement(pm,1,2),GetElement(pm,1,3),
                          GetElement(pm,2,2),GetElement(pm,2,3));
-    SetElement(pinvm,1,3,tmp / d);
+    SetElement(pinvm,1,3,tmp * d);
     tmp = Determinant2x2(GetElement(pm,2,3),GetElement(pm,2,1),
                          GetElement(pm,3,3),GetElement(pm,3,1));
-    SetElement(pinvm,2,1,tmp / d);
+    SetElement(pinvm,2,1,tmp * d);
     tmp = Determinant2x2(GetElement(pm,1,1),GetElement(pm,1,3),
                          GetElement(pm,3,1),GetElement(pm,3,3));
-    SetElement(pinvm,2,2,tmp / d);
+    SetElement(pinvm,2,2,tmp * d);
     tmp = Determinant2x2(GetElement(pm,1,3),GetElement(pm,1,1),
                          GetElement(pm,2,3),GetElement(pm,2,1));
-    SetElement(pinvm,2,3,tmp / d);
+    SetElement(pinvm,2,3,tmp * d);
     tmp = Determinant2x2(GetElement(pm,2,1),GetElement(pm,2,2),
                          GetElement(pm,3,1),GetElement(pm,3,2));
-    SetElement(pinvm,3,1,tmp / d);
+    SetElement(pinvm,3,1,tmp * d);
     tmp = Determinant2x2(GetElement(pm,1,2),GetElement(pm,1,1),
                          GetElement(pm,3,2),GetElement(pm,3,1));
-    SetElement(pinvm,3,2,tmp / d);
+    SetElement(pinvm,3,2,tmp * d);
     tmp = Determinant2x2(GetElement(pm,1,1),GetElement(pm,1,2),
                          GetElement(pm,2,1),GetElement(pm,2,2));
-    SetElement(pinvm,3,3,tmp / d);
+    SetElement(pinvm,3,3,tmp * d);
     return(0);
   }
 }

@@ -124,7 +124,7 @@ int main(int argc, char** argv)
 #endif /* NOT_IMPL defined */
 
   double  slice_width[MAX_DIMENSIONS];
-  double  width_stencil[MAX_DIMENSIONS*MAX_DIMENSIONS];
+  double  width_stencil[MAX_DIMENSIONS*MAX_DIMENSIONS*MAX_DIMENSIONS];
 
   double val[CLASSES],mrf_probability[CLASSES],value; /*  Some temporary variables */
   int specified;
@@ -383,74 +383,81 @@ int main(int argc, char** argv)
       for( i = 0; i < sizes[0]; ++i) {
         for( j = 0; j < sizes[1]; ++j) {
           for( k = 0; k < sizes[2]; ++k ) {
-            if(get_volume_real_value(volume_mask,i,j,k,0,0) > MASK_TR) { 
-
-	      if (use_subcort) {
-		if (get_volume_real_value(volume_subcort,i,j,k,0,0) > 0.5)
-		  sc_region = TRUE;
-		else
-		  sc_region = FALSE;
-	      }
-              value  = get_volume_real_value(volume_in,i,j,k,0,0);
-              for(c = 1;c < PURE_CLASSES + 1; c++) {
-	       		  
-		if ((c == SCLABEL)&&(!sc_region))
-		  val[c - 1] = 0;
-		else
-		  val[c - 1] = Compute_Gaussian_likelihood(value,mean[c],
-							   var[c] + var_measurement );
-              }
-	      
-	      if (!sc_region) {
-		val[WMGMLABEL - 1] = Compute_marginalized_likelihood(value,mean[WMLABEL], mean[GMLABEL],
-								     var[WMLABEL], var[GMLABEL], 
-								     var_measurement, INTERVALS );
-		val[WMSCLABEL - 1] = 0;
-		val[SCGMLABEL - 1] = 0;
-	      } else {
-		val[WMSCLABEL - 1] = Compute_marginalized_likelihood(value,mean[WMLABEL], mean[SCLABEL],
-								     var[WMLABEL], var[SCLABEL], 
-								     var_measurement, INTERVALS );
-		val[SCGMLABEL - 1] = Compute_marginalized_likelihood(value,mean[SCLABEL], mean[GMLABEL],
-								     var[SCLABEL], var[GMLABEL], 
-								     var_measurement, INTERVALS );
-		val[WMGMLABEL-1] = 0;
-	      }
-
-	      val[GMCSFLABEL - 1] = Compute_marginalized_likelihood(value,mean[GMLABEL], mean[CSFLABEL],
-								    var[GMLABEL], var[CSFLABEL], 
-								    var_measurement, INTERVALS );
-//            val[CSFBGLABEL - 1] = Compute_marginalized_likelihood(value, mean[CSFLABEL], mean[BGLABEL], 
-//                                                                  var[CSFLABEL] ,var[BGLABEL], 
-//                                                                  var_measurement, INTERVALS );   
-              val[CSFBGLABEL - 1] = 0.0;  // don't allow BG inside mask
-
-	      
-	      if( Normalize(val,CLASSES) ) {
-                // All values are VERY_SMALL so pick something.
-                // ignore min since it will be BG.
-                if( value > mean[max_class] ) {
-                  val[max_class-1] = 1.0;
-	          Normalize(val,CLASSES);
-                } else {
-                  printf( "Warning: Voxel (%d,%d,%d) out of range with value %g\n",
-                          i, j, k, val );
-                }
-              }
-
-              for(c = 0;c < CLASSES;c++) {
-                set_volume_real_value(volume_likelihood[c], i , j , k, 0, 0, val[c]);
-              }
-              /* Note: no need to change volume_classified here for est_params.
-                       It doesn't make any difference after convergence. */
-              if( iteration == 1 ) {
-		  c = Maxarg(val,CLASSES);
-		  set_volume_real_value(volume_classified, i , j , k, 0, 0, c);
-              }
-            } else {    /* if voxel is in the background, computations are not needed */
-              set_volume_real_value(volume_classified, i , j ,k , 0 , 0, 0);
+            if( i == 0 || j == 0 || k == 0 || i == (sizes[0]-1) ||
+                j == (sizes[1]-1) || k == (sizes[2]-1) ) {
+              set_volume_real_value(volume_classified, i , j , k, 0, 0, 0 );
               for(c = 0;c < CLASSES;c++) {
                 set_volume_real_value(volume_likelihood[c], i , j , k, 0, 0, 0.0);
+              }
+            } else {
+              if(get_volume_real_value(volume_mask,i,j,k,0,0) > MASK_TR) { 
+
+	        if (use_subcort) {
+		  if (get_volume_real_value(volume_subcort,i,j,k,0,0) > 0.5)
+		    sc_region = TRUE;
+		  else
+		    sc_region = FALSE;
+	        }
+                value  = get_volume_real_value(volume_in,i,j,k,0,0);
+                for(c = 1;c < PURE_CLASSES + 1; c++) {
+		  if ((c == SCLABEL)&&(!sc_region))
+		    val[c - 1] = 0;
+		  else
+		    val[c - 1] = Compute_Gaussian_likelihood(value,mean[c],
+							     var[c] + var_measurement );
+                }
+	      
+	        if (!sc_region) {
+		  val[WMGMLABEL - 1] = Compute_marginalized_likelihood(value,mean[WMLABEL], mean[GMLABEL],
+								       var[WMLABEL], var[GMLABEL], 
+								       var_measurement);
+		  val[WMSCLABEL - 1] = 0;
+		  val[SCGMLABEL - 1] = 0;
+	        } else {
+		  val[WMSCLABEL - 1] = Compute_marginalized_likelihood(value,mean[WMLABEL], mean[SCLABEL],
+								       var[WMLABEL], var[SCLABEL], 
+								       var_measurement);
+		  val[SCGMLABEL - 1] = Compute_marginalized_likelihood(value,mean[SCLABEL], mean[GMLABEL],
+								       var[SCLABEL], var[GMLABEL], 
+								       var_measurement);
+		  val[WMGMLABEL-1] = 0;
+	        }
+
+	        val[GMCSFLABEL - 1] = Compute_marginalized_likelihood(value,mean[GMLABEL], mean[CSFLABEL],
+								      var[GMLABEL], var[CSFLABEL], 
+								      var_measurement );
+//              val[CSFBGLABEL - 1] = Compute_marginalized_likelihood(value, mean[CSFLABEL], mean[BGLABEL], 
+//                                                                    var[CSFLABEL] ,var[BGLABEL], 
+//                                                                    var_measurement );   
+                val[CSFBGLABEL - 1] = 0.0;  // don't allow BG inside mask
+
+	      
+	        if( Normalize(val,CLASSES) ) {
+                  // All values are VERY_SMALL so pick something.
+                  // ignore min since it will be BG.
+                  if( value > mean[max_class] ) {
+                    val[max_class-1] = 1.0;
+	            Normalize(val,CLASSES);
+                  } else {
+                    printf( "Warning: Voxel (%d,%d,%d) out of range with value %g\n",
+                            i, j, k, val );
+                  }
+                }
+
+                for(c = 0;c < CLASSES;c++) {
+                  set_volume_real_value(volume_likelihood[c], i , j , k, 0, 0, val[c]);
+                }
+              /* Note: no need to change volume_classified here for est_params.
+                       It doesn't make any difference after convergence. */
+                if( iteration == 1 ) {
+	          c = Maxarg(val,CLASSES);
+		  set_volume_real_value(volume_classified, i , j , k, 0, 0, c);
+                }
+              } else {    /* if voxel is in the background, computations are not needed */
+                set_volume_real_value(volume_classified, i , j ,k , 0 , 0, 0);
+                for(c = 0;c < CLASSES;c++) {
+                  set_volume_real_value(volume_likelihood[c], i , j , k, 0, 0, 0.0);
+                }
               }
             }
           }
@@ -465,7 +472,6 @@ int main(int argc, char** argv)
     for(i = 0; i < sizes[0]; ++i) {
       for(j = 0; j < sizes[1]; ++j) {
         for(k = 0; k < sizes[2]; ++k) {
-	  mrf_params[SMLR] = -1;
           current_tissue_class = get_volume_real_value(volume_classified,i,j,k,0,0);
 
 // NOTE: A BG voxel can never change to a new type this way!!!! (use mask instead)
@@ -480,37 +486,28 @@ int main(int argc, char** argv)
             }
 
 	    //use curvature info to weight the MRF spatially if provided
+	    double mrf_similar = mrf_params[SMLR];
 	    if (use_curve) {
 	      curve_val = get_volume_real_value(volume_curve,i,j,k,0,0);
               if (curve_val < 0) {
-                mrf_params[SMLR] = curve_params[0]/(1+exp(curve_params[1]*(fabs(curve_val)-curve_params[2]))) 
-                  - curve_params[3];
+                mrf_similar = curve_params[0]/(1+exp(curve_params[1]*(fabs(curve_val)-curve_params[2]))) 
+                              - curve_params[3];
               }
             }
-            for( c = 0;c < CLASSES;c++) {
-	      if (sc_region) {
-		if (c+1 == WMGMLABEL) {
-		  mrf_probability[c] = 0;
-		  continue;
-		}
-	      } else {
-		if ((c+1 == WMSCLABEL)||(c+1 == SCGMLABEL)||(c+1 == SCLABEL)) {
-		  mrf_probability[c] = 0;
-		  continue;
-		}
-	      }
 
-	      if (((c+1) == GMCSFLABEL)||((c+1) == CSFLABEL))
-		smlr = mrf_params[SMLR];
-	      else
-		smlr = -1;
+	    Compute_mrf_probability(mrf_probability, &volume_classified,i,j,k,
+                                    width_stencil, mrf_params[BETA], mrf_params[SAME],
+                                    mrf_similar, mrf_params[DIFF],pr_prior);
 
-	      mrf_probability[c] = Compute_mrf_probability(c + 1,&volume_classified,i,j,k,
-							   width_stencil, mrf_params[BETA], mrf_params[SAME], 
-							   smlr, mrf_params[DIFF],pr_prior,sizes);	      	 
-	    }    
-	 
-	    Normalize(mrf_probability,CLASSES);
+            if (sc_region) {
+              mrf_probability[WMGMLABEL-1] = 0;
+            } else {
+              mrf_probability[WMSCLABEL-1] = 0;
+              mrf_probability[SCGMLABEL-1] = 0;
+              mrf_probability[SCLABEL-1] = 0;
+            }
+ 
+            Normalize(mrf_probability,CLASSES);
 	    
             for(c = 0; c < CLASSES;c++) {	
 

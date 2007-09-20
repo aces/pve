@@ -131,10 +131,12 @@ int main(int argc, char** argv)
 #endif /* NOT_IMPL defined */
 
   double  slice_width[MAX_DIMENSIONS];
-  double  width_stencil[MAX_DIMENSIONS*MAX_DIMENSIONS];
+  double  width_stencil[MAX_DIMENSIONS*MAX_DIMENSIONS*MAX_DIMENSIONS];
 
   double val[CLASSES],mrf_probability[CLASSES],value; /*  Some temporary variables */
   Matrix3D varsum;
+  Matrix3D invvarsum[PURE_CLASSES];
+  double   sqdet[PURE_CLASSES];
   Vector3D intensity;
   int specified;
 
@@ -321,8 +323,8 @@ int main(int argc, char** argv)
   }
 
   /* Set boundary points for extreme high voxel values. */
-  char max_class[3] = {0,0,0};
-  char min_class[3] = {0,0,0};
+  char max_class[3] = {1,1,1};   // exclude BG
+  char min_class[3] = {1,1,1};
   for( im = 0; im < 3; im++ ) {
     for(c = 1; c < PURE_CLASSES; c++) {
       if( mean[c][im] > mean[max_class[im]][im] ) max_class[im] = c;
@@ -411,87 +413,104 @@ int main(int argc, char** argv)
     /* Update the likelihoods with current parameters only if that is necessary */
     if(em || est_params || iteration == 1) {
 
+      /* precompute inverse of static matrices (for speed) */
+      for(c = 1;c < PURE_CLASSES + 1; c++) { 
+        AddMatrices(var[c],var_measurement,varsum);
+        sqdet[c-1] = sqrt( pow(2 * PI,3) * Determinant( varsum ) );
+        Invert( varsum, invvarsum[c-1] );
+      }
+
       for( i = 0; i < sizes[0]; ++i) {
         for( j = 0; j < sizes[1]; ++j) {
           for( k = 0; k < sizes[2]; ++k ) {
-            if(get_volume_real_value(volume_mask,i,j,k,0,0) > MASK_TR) { 
-
-	      if (use_subcort) {
-		if (get_volume_real_value(volume_subcort,i,j,k,0,0) > 0.5)
-		  sc_region = TRUE;
-		else
-		  sc_region = FALSE;
-	      }
-              intensity[0] = get_volume_real_value(volume_inT1,i,j,k,0,0);
-              intensity[1] = get_volume_real_value(volume_inT2,i,j,k,0,0);
-              intensity[2] = get_volume_real_value(volume_inPD,i,j,k,0,0);
-              for(c = 1;c < PURE_CLASSES + 1; c++) { 
-
-		if ((c == SCLABEL)&&(!sc_region))
-		  val[c - 1] = 0;
-		else {
-		  AddMatrices(var[c],var_measurement,varsum);     
-		  val[c - 1] = Compute_Gaussian_likelihood3(intensity,mean[c],varsum );
-		}
-	      }
-
-	      if (!sc_region) {
-		
-		val[WMGMLABEL - 1] = Compute_marginalized_likelihood3(intensity,mean[WMLABEL], mean[GMLABEL],
-								      var[WMLABEL], var[GMLABEL], 
-								      var_measurement, INTERVALS );
-		val[WMSCLABEL - 1] = 0;
-		val[SCGMLABEL - 1] = 0;
-	      } else {
-		val[WMSCLABEL - 1] = Compute_marginalized_likelihood3(intensity,mean[WMLABEL], mean[SCLABEL],
-								     var[WMLABEL], var[SCLABEL], 
-								     var_measurement, INTERVALS );
-		val[SCGMLABEL - 1] = Compute_marginalized_likelihood3(intensity,mean[SCLABEL], mean[GMLABEL],
-								     var[SCLABEL], var[GMLABEL], 
-								     var_measurement, INTERVALS );
-		val[WMGMLABEL-1] = 0;
-	      }
-              val[GMCSFLABEL - 1] = Compute_marginalized_likelihood3(intensity,mean[GMLABEL], mean[CSFLABEL],
-                                                                var[GMLABEL], var[CSFLABEL], 
-                                                                var_measurement, INTERVALS );
-//            val[CSFBGLABEL - 1] = Compute_marginalized_likelihood3(intensity, mean[CSFLABEL], mean[BGLABEL], 
-//                                                                   var[CSFLABEL] ,var[BGLABEL], 
-//                                                                   var_measurement, INTERVALS );         
-              val[CSFBGLABEL - 1] = 0.0;  // don't allow BG inside mask
-
-              if( Normalize(val,CLASSES) ) {
-                // All values are VERY_SMALL so pick something. For tri-modal, this
-                // is a mess. It could be a value out of range (arteface) or a 
-                // conflicting value between modalities (blood vessel, for example).
-                // One simple solution would be to use the value from the classified 
-                // image but it is not always available. So do some simple range
-                // checking instead.
-
-                for( im = 0; im < 3; im++ ) {
-                  if( intensity[im] < mean[min_class[im]][im] ) {  
-                    val[BGLABEL-1] = 1.0;          /* make it background */
-                  }
-                  if( intensity[im] > mean[max_class[im]][im] ) {  
-                    val[max_class[im]-1] = 1.0;    /* make it the highest class */
-                  }
-                }
-                Normalize(val,CLASSES);
-                // NOTE: Maybe here we could recompute the marginalized likelihoods.
-              }
-             
-              for(c = 0;c < CLASSES;c++) {
-                set_volume_real_value(volume_likelihood[c], i , j , k, 0, 0, val[c]);
-              }
-              /* Note: no need to change volume_classified here for est_params.
-                       It doesn't make any difference after convergence. */
-              if( iteration == 1 ) {
-                c = Maxarg(val,CLASSES);
-                set_volume_real_value(volume_classified, i , j , k, 0, 0, c);
-              }
-            } else {    /* if voxel is in the background, computations are not needed */
-              set_volume_real_value(volume_classified, i , j ,k , 0 , 0, 0);
+            if( i == 0 || j == 0 || k == 0 || i == (sizes[0]-1) ||
+                j == (sizes[1]-1) || k == (sizes[2]-1) ) {
+              set_volume_real_value(volume_classified, i , j , k, 0, 0, 0 );
               for(c = 0;c < CLASSES;c++) {
                 set_volume_real_value(volume_likelihood[c], i , j , k, 0, 0, 0.0);
+              }
+            } else {
+              if(get_volume_real_value(volume_mask,i,j,k,0,0) > MASK_TR) { 
+
+	        if (use_subcort) {
+		  if (get_volume_real_value(volume_subcort,i,j,k,0,0) > 0.5)
+		    sc_region = TRUE;
+		  else
+		    sc_region = FALSE;
+	        }
+                intensity[0] = get_volume_real_value(volume_inT1,i,j,k,0,0);
+                intensity[1] = get_volume_real_value(volume_inT2,i,j,k,0,0);
+                intensity[2] = get_volume_real_value(volume_inPD,i,j,k,0,0);
+
+                for(c = 1;c < PURE_CLASSES + 1; c++) { 
+
+		  if ((c == SCLABEL)&&(!sc_region)) {
+		    val[c - 1] = 0;
+		  } else {
+		    val[c - 1] = Compute_Gaussian_likelihood3_fast(intensity,mean[c],
+                                                               invvarsum[c-1], sqdet[c-1] );
+		  }
+	        }
+
+                if (!sc_region) {
+		
+		  val[WMGMLABEL - 1] = Compute_marginalized_likelihood3(intensity,mean[WMLABEL], mean[GMLABEL],
+								        var[WMLABEL], var[GMLABEL], 
+								        var_measurement);
+		  val[WMSCLABEL - 1] = 0;
+		  val[SCGMLABEL - 1] = 0;
+	        } else {
+		  val[WMSCLABEL - 1] = Compute_marginalized_likelihood3(intensity,mean[WMLABEL], mean[SCLABEL],
+								        var[WMLABEL], var[SCLABEL], 
+								        var_measurement);
+		  val[SCGMLABEL - 1] = Compute_marginalized_likelihood3(intensity,mean[SCLABEL], mean[GMLABEL],
+								        var[SCLABEL], var[GMLABEL], 
+								        var_measurement);
+		  val[WMGMLABEL-1] = 0;
+	        }
+                val[GMCSFLABEL - 1] = Compute_marginalized_likelihood3(intensity,mean[GMLABEL], mean[CSFLABEL],
+                                                                  var[GMLABEL], var[CSFLABEL], 
+                                                                  var_measurement );
+//              val[CSFBGLABEL - 1] = Compute_marginalized_likelihood3(intensity, mean[CSFLABEL], mean[BGLABEL], 
+//                                                                     var[CSFLABEL] ,var[BGLABEL], 
+//                                                                     var_measurement );         
+                val[CSFBGLABEL - 1] = 0.0;  // don't allow BG inside mask
+
+                if( Normalize(val,CLASSES) ) {
+                  // All values are VERY_SMALL so pick something. For tri-modal, this
+                  // is a mess. It could be a value out of range (artefact) or a 
+                  // conflicting value between modalities (blood vessel, for example).
+                  // One simple solution would be to use the value from the classified 
+                  // image but it is not always available. So do some simple range
+                  // checking instead.
+
+                  for( im = 0; im < 3; im++ ) {
+                    if( intensity[im] < mean[min_class[im]][im] ) {  
+                      val[BGLABEL-1] = 1.0;          /* make it background */
+                    }
+                    if( intensity[im] > mean[max_class[im]][im] ) {  
+                      val[max_class[im]-1] = 1.0;    /* make it the highest class */
+                    }
+                  }
+                  Normalize(val,CLASSES);
+                  // NOTE: Maybe here we could recompute the marginalized likelihoods.
+                }
+             
+                for(c = 0;c < CLASSES;c++) {
+                  set_volume_real_value(volume_likelihood[c], i , j , k, 0, 0, val[c]);
+                }
+
+                /* Note: no need to change volume_classified here for est_params.
+                         It doesn't make any difference after convergence. */
+                if( iteration == 1 ) {
+                  c = Maxarg(val,CLASSES);
+                  set_volume_real_value(volume_classified, i , j , k, 0, 0, c);
+                }
+              } else {    /* if voxel is in the background, computations are not needed */
+                set_volume_real_value(volume_classified, i , j ,k , 0 , 0, 0);
+                for(c = 0;c < CLASSES;c++) {
+                  set_volume_real_value(volume_likelihood[c], i , j , k, 0, 0, 0.0);
+                }
               }
             }
           }
@@ -506,7 +525,6 @@ int main(int argc, char** argv)
     for(i = 0; i < sizes[0]; ++i) {
       for(j = 0; j < sizes[1]; ++j) {
         for(k = 0; k < sizes[2]; ++k) {
-	  mrf_params[SMLR] = -1;
           current_tissue_class = get_volume_real_value(volume_classified,i,j,k,0,0);
 	  if(current_tissue_class != 0) {
 
@@ -519,37 +537,27 @@ int main(int argc, char** argv)
             }
 
 	    //use curvature info to weight the MRF spatially if provided
+	    double mrf_similar = mrf_params[SMLR];
 	    if (use_curve) {
 	      curve_val = get_volume_real_value(volume_curve,i,j,k,0,0);
               if (curve_val < 0) {
-                mrf_params[SMLR] = curve_params[0]/(1+exp(curve_params[1]*(fabs(curve_val)-curve_params[2]))) 
-                  - curve_params[3];
+                mrf_similar = curve_params[0]/(1+exp(curve_params[1]*(fabs(curve_val)-curve_params[2]))) 
+                              - curve_params[3];
               }
             }
-            for( c = 0;c < CLASSES;c++) {
-	      if (sc_region) {
-		if (c+1 == WMGMLABEL) {
-		  mrf_probability[c] = 0;
-		  continue;
-		}
-	      } else {
-		if ((c+1 == WMSCLABEL)||(c+1 == SCGMLABEL)||(c+1 == SCLABEL)) {
-		  mrf_probability[c] = 0;
-		  continue;
-		}
-	      }
 
-	      if (((c+1) == GMCSFLABEL)||((c+1) == CSFLABEL))
-		smlr = mrf_params[SMLR];
-	      else
-		smlr = -1;
+            Compute_mrf_probability(mrf_probability, &volume_classified,i,j,k,
+                                    width_stencil, mrf_params[BETA], mrf_params[SAME],
+                                    mrf_similar, mrf_params[DIFF], pr_prior);
 
-	      mrf_probability[c] = Compute_mrf_probability(c + 1,&volume_classified,i,j,k,
-							   width_stencil, mrf_params[BETA], mrf_params[SAME], 
-							   smlr, mrf_params[DIFF],pr_prior,sizes);  
-	      
-	      
-	    }
+            if (sc_region) {
+              mrf_probability[WMGMLABEL-1] = 0;
+            } else {
+              mrf_probability[WMSCLABEL-1] = 0;
+              mrf_probability[SCGMLABEL-1] = 0;
+              mrf_probability[SCLABEL-1] = 0;
+            }
+
             Normalize(mrf_probability,CLASSES);
             for(c = 0; c < CLASSES;c++) {
 	      if ((sc_region)&&(c+1 == WMGMLABEL))

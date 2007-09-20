@@ -14,7 +14,6 @@
 #define SC_TR  1.5             /* Values below this constant in the volume_subcort
                                  indicate that corresponding voxels are not subcortical. */
 
-#define INTERVALS 50           /* For numerical integration */
 #define MAX_ITERATIONS 20      /* Maximum number of iterations of ICM */
 #define LIKELIHOOD_RANGE_MIN 0.0
 #define LIKELIHOOD_RANGE_MAX 1.0
@@ -119,12 +118,11 @@ char Maxarg(double* pval, char n);
 double Compute_Gaussian_likelihood(double value, double mean , double var);
 double Compute_marginalized_likelihood(double value, double mean1 , double mean2, 
                                        double var1, double var2, 
-                                       double measurement_var,
-                                       unsigned int nof_intervals);
-double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z, 
-                               double* width_stencil, double beta, double same, double similar, 
-                               double different, double prior, int* sizes);
+                                       double measurement_var);
 
+void Compute_mrf_probability(double * mrf_prob, Volume* pvolume, int x, int y , int z,
+                             double* width_stencil, double beta, double same, double similar,
+                             double different, double prior);
 void Parameter_estimation(Volume volume_in, Volume volume_mask, 
                          Volume probabilities[CLASSES],double* mean, double* var,
                          double* var_measurement);

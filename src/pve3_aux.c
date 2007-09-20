@@ -251,6 +251,9 @@ int Estimate_params_from_image3(Volume volume_inT1,Volume volume_inT2,Volume vol
     printf("Subcortical mean:");
     PrintVector(mean[SCLABEL]);
   }
+  printf("BG mean:");
+  PrintVector(mean[BGLABEL]);
+
   printf("White matter variance:");
   PrintMatrix(var[WMLABEL]);
   printf("Gray matter variance:" );
@@ -261,6 +264,8 @@ int Estimate_params_from_image3(Volume volume_inT1,Volume volume_inT2,Volume vol
     printf("Subcortical variance:");
     PrintMatrix(var[SCLABEL]);
   }
+  printf("BG variance:");
+  PrintMatrix(var[BGLABEL]);
   delete_volume(volume_seg);
   return(0);
 }
@@ -291,6 +296,7 @@ int Estimate_ml3(Volume volume_inT1, Volume volume_inT2,Volume volume_inPD,
     samples = Collect_values3(volume_inT1,volume_inT2,volume_inPD,
 			      volume_mask,volume_seg,ref_label,&nofsamples);
   }
+
   if(samples == NULL) return(1);
   for(i = 0;i < nofsamples;i++) {
     for(j = 0;j < 3;j++) {
@@ -532,6 +538,7 @@ double* Collect_values3(Volume volume_inT1,Volume volume_inT2,Volume volume_inPD
   }
   delete_volume(volume_tmp);
   *pcount = count;    
+
   return(sample_vector);
 }
 
@@ -854,9 +861,28 @@ double Compute_Gaussian_likelihood3(pVector value, pVector mean , pMatrix var)
   Invert(var,invvar);
   SubtractVectors(value,mean,v);
   exponent = -0.5 * QuadraticForm(invvar,v);
-   
   
   return(exp(exponent)/(sqrt(pow(2 * PI,3) * d)));
+
+}
+
+/* -------------------------------------------------------------------
+Computes likelihood of value given parameters mean and variance. 
+Returns the likelihood.                                                */
+
+double Compute_Gaussian_likelihood3_fast(pVector value, pVector mean , pMatrix invvar,
+                                         double sq_d )
+
+{ 
+  double exponent;
+  Vector3D v;
+
+  // d = Determinant(var);
+  // Invert(var,invvar);
+  SubtractVectors(value,mean,v);
+  exponent = -0.5 * QuadraticForm(invvar,v);
+  
+  return( exp(exponent)/sq_d );
 
 }
 
@@ -869,99 +895,106 @@ intensity value) that is composed of t * tissue1 and (1 - t)* tissue2 becomes :
 y = t*x1 + (1 - t)*x2 + xm,
 x1 ~ N(mean1,var1) , x2 ~ N(mean2,var2) , xm ~ N(0,measurement_var).
 
-Note: The numerical integration routine used by the 
-function is primitive , but so is the mankind...
+Note: Use Gauss-Legendre quadrature of order 7, with four intervals.
 
 */
 
 double Compute_marginalized_likelihood3(pVector value, pVector mean1 , pVector mean2, 
                                        pMatrix var1, pMatrix var2, 
-                                       pMatrix measurement_var, 
-                                       unsigned int nof_intervals)
+                                       pMatrix measurement_var ) {
 
-{ 
-  double lh, t, interval_len;
-  int i;  
+  double gl4_pt[] = { -0.861136311594, -0.339981043585,
+                       0.339981043585,  0.861136311594 };
+  double gl4_wgt[] = { 0.347854845137, 0.652145154863,
+                       0.652145154863, 0.347854845137 };
+
+  double lh, t, t1, t2, interval_len;
+  int i, k;
+
   Vector3D tmean;
   Matrix3D tvar;  
   Vector3D tmpv1,tmpv2;
   Matrix3D tmpm1,tmpm2,tmpm3;
 
-  interval_len = (double) 1 / nof_intervals;
-  lh = 0;
+  int nof_intervals = 4;
+  interval_len = (double) 1.0 / nof_intervals;
+  lh = 0.0;
+  t1 = 0.0;
   for(i = 0; i < nof_intervals; i++) {
-    t = (i + 0.5) * interval_len;
+    t2 = t1 + interval_len;
+    for( k = 0; k < 4; k++ ) {
+      t = 0.5 * ( interval_len * gl4_pt[k] + t1 + t2 );
 
-    ScalarMultiplyVector(mean1,t,tmpv1);       /* Find mean vector for */
-    ScalarMultiplyVector(mean2,1 - t,tmpv2);   /* current t.           */
-    AddVectors(tmpv1,tmpv2,tmean);
+      ScalarMultiplyVector(mean1,t,tmpv1);       /* Find mean vector for */
+      ScalarMultiplyVector(mean2,1 - t,tmpv2);   /* current t.           */
+      AddVectors(tmpv1,tmpv2,tmean);
 
-    ScalarMultiply(var1,pow(t,2),tmpm1);       /* Find the covariance   */
-    ScalarMultiply(var2,pow(1 - t,2),tmpm2);   /* matrix for current t. */
-    AddMatrices(tmpm1,tmpm2,tmpm3);            /* tmpm3 = tmpm1 + tmpm2 */
-    AddMatrices(tmpm3,measurement_var,tvar);   /* tvar = tmpm3 + measurement_var */
+      ScalarMultiply(var1,t*t,tmpm1);               /* Find the covariance   */
+      ScalarMultiply(var2,(1.0-t)*(1.0-t),tmpm2);   /* matrix for current t. */
+      AddMatrices(tmpm1,tmpm2,tmpm3);            /* tmpm3 = tmpm1 + tmpm2 */
+      AddMatrices(tmpm3,measurement_var,tvar);   /* tvar = tmpm3 + measurement_var */
  
-    lh = lh + Compute_Gaussian_likelihood3(value, tmean,tvar)*interval_len;
+      lh += gl4_wgt[k] * Compute_Gaussian_likelihood3(value, tmean,tvar);
+    }
+    t1 += interval_len;
   }
+  lh *= 0.5 * interval_len;
+
   return(lh);
- }
+}
 
 /* Computes prior probalibility of a voxel have a certain label given the neighbourhood labels.
    Takes classified volume and three coordinates.
     The first argument is of course the label under investigation.
    prior is the prior probability of the label to occur.
    Integers same , similar and different and double beta specify the MRF.
-   on_the_border and sizes are used detect when we are on image borders and prevent nasty
-   segmentation faults.
-
+   No need to check for on_the_border as this is checked in the likelyhood loop.
  */
-double Compute_mrf_probability(char label, Volume* pvolume, int x, int y , int z, 
-                               double* width_stencil, double beta, double same, double similar, double different, 
-                               double prior, int* sizes)
-{
-  int i,j,k,ii;
-  char label2;  
-  double exponent, distance;
-  double similarity_value;
-  char on_the_border;
 
-  on_the_border = (x == 0) || (y == 0) || (z == 0) || (x == sizes[0] - 1) 
-                  || (y == sizes[1] - 1) || (z == sizes[2] - 1); 
-  /* To determine if it's possible to get out of image limits. 
-     If false (as it usually is) this saves the trouble calculating this 27 times */
- 
-  ii = 0;
-  exponent = 0;
+void Compute_mrf_probability(double* mrf_probability, Volume* pvolume, int x, int y , int z, 
+                             double* width_stencil, double beta, double same, double similar, 
+                             double different, double prior ) {
+
+  int i,j,k,ii;
+  char label, label2;  
+  double similarity_value;
+
+  for( label = 0; label < CLASSES; label++ ) {
+    mrf_probability[label] = 0;
+  }
+
+  ii = 0; 
   for(i = -1; i < 2; i++) {
     for(j = -1; j < 2; j++) {
       for(k = -1; k < 2; k++) {
-         if( i == 0 && j == 0 && k == 0 ) 
-           exponent = exponent + prior;
-         else {
-           if(!on_the_border) { /* There's no danger of getting out of the image limits */
-             label2 = get_volume_real_value(*pvolume, x + i, y + j , z + k,0,0);
-           }
-           else {
-             if(x + i < 0 || y + j < 0 || z + k < 0 || x + i > sizes[0] - 1
-                || y + j > sizes[1] - 1 || z + k > sizes[2] - 1) {
-               label2 = BGLABEL;
-             }
-             else {
-               label2 = get_volume_real_value(*pvolume, x + i, y + j , z + k,0,0);
-             }
-           }    
-           if(Are_same(label,label2)) similarity_value = same;
-           else if(Are_similar(label,label2)) similarity_value = similar;
-           else similarity_value = different;
-
-           exponent = exponent + similarity_value * width_stencil[ii];
-	 }
-         ii++;
+        if( i == 0 && j == 0 && k == 0 ) {
+          for( label = 0; label < CLASSES; label++ ) {
+            mrf_probability[label] += prior;
+          }
+        } else {
+          label2 = get_volume_real_value(*pvolume, x + i, y + j , z + k,0,0);
+          for( label = 0; label < CLASSES; label++ ) {
+            if(Are_same(label+1,label2)) {
+              similarity_value = same;
+            } else if(Are_similar(label+1,label2)) {
+              if (((label+1) == GMCSFLABEL)||((label+1) == CSFLABEL)) {
+                similarity_value = similar;
+              } else {
+                similarity_value = -1;
+              }
+            } else {
+              similarity_value = different;
+            }
+            mrf_probability[label] += similarity_value * width_stencil[ii];
+          }
+        }
+        ii++;
       }
     }
   } 
-  return(exp(- ( beta* exponent)));  
- 
+  for( label = 0; label < CLASSES; label++ ) {
+    mrf_probability[label] = exp( -beta * mrf_probability[label] );
+  }
 
 } 
 

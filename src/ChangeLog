@@ -1,3 +1,9 @@
+2007-09-19	Claude Lepage	<claude@bic.mni.mcgill.ca>
+	* Speed optimizations: use Gauss-Legendre quadrature of order 4 to
+          integrate marginalized likelihoods
+	* Fixed a bug with dimensions of vector width_stencil (causing seg fault)
+	* Make version at 1.1.6 for quarantine.
+
 2006-12-15	Claude Lepage	<claude@bic.mni.mcgill.ca>
 	* Fixed bug in pve3 for WMGM variance
 	* Allow sub-cortical gray class for all options in pve and pve3

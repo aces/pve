@@ -1,3 +1,8 @@
+New in release 1.1.6:
+        * Speed optimizations: use Gauss-Legendre quadrature of order 4 to
+          integrate marginalized likelihoods (makes pve zippy faster!)
+        * Fixed a bug with dimensions of vector width_stencil (causing seg fault)
+
 New in release 1.1.5:
         * Fixed bug in pve3 for WMGM variance
         * Allow sub-cortical gray class for all options in pve and pve3
