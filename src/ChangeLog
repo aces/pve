@@ -1,3 +1,6 @@
+2008-12-19	Claude Lepage	<claude@bic.mni.mcgill.ca>
+	* Use -byte in discretize_pve
+
 2007-09-19	Claude Lepage	<claude@bic.mni.mcgill.ca>
 	* Speed optimizations: use Gauss-Legendre quadrature of order 4 to
           integrate marginalized likelihoods
