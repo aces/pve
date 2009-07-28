@@ -1,12 +1,18 @@
 #!@PERL@
 
+#
+# Copyright Alan C. Evans
+# Professor of Neurology
+# McGill University
+#
+
 use strict;
 use warnings "all";
 use Getopt::Tabular;
 use File::Basename;
 use File::Temp qw/ tempdir /;
 
-my($Help, $Usage, $me);
+my($Help, $Usage, $License, $me);
 my(@opt_table, %opt );
 
 $me = &basename($0);
@@ -22,10 +28,17 @@ $me = &basename($0);
       "clobber existing files" ]
 );
 
+&CreateInfoText;
+
 GetOptions( \@opt_table, \@ARGV )
   or exit 1;
 
-&CreateInfoText;
+my $numargs = @ARGV;
+
+if( $numargs != 5 )  {
+    warn $Usage;
+    die "Incorrect number of arguments\n";
+}
 
 # define input variables:
 
@@ -140,10 +153,19 @@ my $kerndz = "$temp_dir/dz.kern";
 
 sub CreateInfoText
 {
+  $License = <<LICENSE;
+Copyright Alan C. Evans
+Professor of Neurology
+McGill University
+
+LICENSE
+
   $Usage = <<USAGE;
 usage:
        $me [options] t1_image.mnc classified.mnc mask.mnc output_pref
        $me -help to list options
+
+$License
 USAGE
   
   $Help = <<HELP;

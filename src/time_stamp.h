@@ -5,6 +5,9 @@
 @CREATED    : February 1, 1993 (Peter Neelin)
 @MODIFIED   : 
  * $Log$
+ * Revision 1.1  2004/08/03 22:00:52  vsingh
+ * *** empty log message ***
+ *
  * Revision 6.2  1999/10/19 15:57:18  neelin
  * Fixed log message containing log substitution
  *
@@ -32,16 +35,9 @@
  * Revision 1.3  93/08/04  13:04:00  neelin
  * Added RCS Log to keep track of modifications in source
  *
-@COPYRIGHT  :
-              Copyright 1993 Peter Neelin, McConnell Brain Imaging Centre, 
-              Montreal Neurological Institute, McGill University.
-              Permission to use, copy, modify, and distribute this
-              software and its documentation for any purpose and without
-              fee is hereby granted, provided that the above copyright
-              notice appear in all copies.  The author and McGill University
-              make no representations about the suitability of this
-              software for any purpose.  It is provided "as is" without
-              express or implied warranty.
+@COPYRIGHT  : Copyright Alan C. Evans
+              Professor of Neurology
+              McGill University
 ---------------------------------------------------------------------------- */
 
 char *time_stamp(int argc, char *argv[]);

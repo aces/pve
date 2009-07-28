@@ -1,3 +1,9 @@
+/*
+   Copyright Alan C. Evans
+   Professor of Neurology
+   McGill University
+*/
+
 #include "matrix3.h"
 #include "minvarellipsoid3.h"
 #include <stdlib.h>

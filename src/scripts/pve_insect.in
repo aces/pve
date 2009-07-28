@@ -1,5 +1,10 @@
 #!@PERL@
  
+#
+# Copyright Alan C. Evans
+# Professor of Neurology
+# McGill University
+#
 
 # adapted from insect.pl - does essentially the same thing but using a
 # more complex algorithm to get at the classification. See the help
@@ -24,7 +29,7 @@ my ($t1, $t2, $pd); # input files
 my $outputBase;
 
 # Other globals
-my($Usage, $Help);
+my($Usage, $License, $Help);
 my $multispectral = 0;
 
 my $Template = "$FindBin::Bin/../share/ICBM/" . 'icbm_template_1.00mm.mnc';
@@ -195,10 +200,20 @@ sub Initialize
 # create the help messages and such
 sub CreateInfoText
 {
+
+    $License = <<LICENSE;
+Copyright Alan C. Evans
+Professor of Neurology
+McGill University
+
+LICENSE
+
     $Usage = <<USAGE;
 Usage: $ProgramName [options] <input.mnc> <output_base> or
        $ProgramName [options] <t1.mnc> <t2.mnc> <pd.mnc> <output_base>
        $ProgramName -help for details
+
+$License
 USAGE
 
     $Help = <<HELP;

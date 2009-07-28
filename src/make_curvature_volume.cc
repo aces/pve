@@ -1,3 +1,9 @@
+/*
+   Copyright Alan C. Evans
+   Professor of Neurology
+   McGill University
+*/
+
 /**
  * Compute curvature from image intensities.
  * Uses method of Thirion and Gourdon (INRIA Tech Report 1881-1).
@@ -205,6 +211,9 @@ int  main( int ac, char* av[] )
     if ( ac != 3 ) {
 	std::cerr << "usage: " << av[0] 
 		  << " input out_prefix" << std::endl;
+        std::cerr << std::endl << "Copyright Alan C. Evans" << std::endl
+                               << "Professor of Neurology" << std::endl
+                               << "McGill University" << std::endl;
 	return 1;
     }
 

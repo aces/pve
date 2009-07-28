@@ -11,6 +11,12 @@
 @MODIFIED   : Last modification in Aug 2004 by Vivek Singh
 ---------------------------------------------------------------------------- */
 
+/*
+   Copyright Alan C. Evans
+   Professor of Neurology
+   McGill University
+*/
+
 /* Partial volume estimation for multi channel data 
    Look for pve3_aux.c for auxiliary functions. 
    This file contains only main.

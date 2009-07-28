@@ -1,3 +1,9 @@
+/*
+   Copyright Alan C. Evans
+   Professor of Neurology
+   McGill University
+*/
+
 /* HEADER FOR THE AUXILIARY FUNCTIONS NEEDED BY pve.c 
    Take a look at .c file for comments on functions. */
 
@@ -82,19 +88,19 @@ extern const char POTTS_LOOKUP_TABLE[CLASSES + 1][CLASSES + 1];
 void Display_help(); 
 int Get_params_from_file(char* fn, double* mean, double* var, double* pvmeasurement);
 int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volume_subcort,
-                               char* segmentation_filename, double* mean, 
+                               Volume volume_seg, double* mean, 
                                double* var , double* pvmeasurement);
-int Estimate_ml(Volume volume_in,Volume volume_mask,Volume volume_seg,Volume volume_subcort,
-                char ref_label, double* mean,double* var);
-int Estimate_mve(Volume volume_in,Volume volume_mask,Volume volume_seg,Volume volume_subcort,
-                 char ref_label, double* mean,double* var);
-int Estimate_mcd(Volume volume_in,Volume volume_mask,Volume volume_seg,
-		 Volume volume_subcort,char ref_label, double* mean,double* var);
+
+int Estimate_ml( double * samples, long int nofsamples,
+                 double* mean, double* var );
+int Estimate_mve( double * samples, long int nofsamples,
+                  double* mean, double* var );
+int Estimate_mcd( double * samples, long int nofsamples,
+                  double* mean, double* var );
 
 double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
-		       long int* pcount);
-double* Collect_values_subcortical(Volume volume_in,Volume volume_subcort, char ref_label,
-		       long int* pcount);
+		       long int* pcount, int neighbourhood);
+double* Collect_values_subcortical(Volume volume_in,Volume volume_subcort, long int* pcount);
 
 /* double Estimate_mean(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label);
 double Estimate_variance(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,double mean);
@@ -122,7 +128,7 @@ double Compute_marginalized_likelihood(double value, double mean1 , double mean2
 
 void Compute_mrf_probability(double * mrf_prob, Volume* pvolume, int x, int y , int z,
                              double* width_stencil, double beta, double same, double similar,
-                             double different, double prior);
+                             double different, double prior );
 void Parameter_estimation(Volume volume_in, Volume volume_mask, 
                          Volume probabilities[CLASSES],double* mean, double* var,
                          double* var_measurement);

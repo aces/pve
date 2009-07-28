@@ -1,3 +1,9 @@
+/*
+   Copyright Alan C. Evans
+   Professor of Neurology
+   McGill University
+*/
+
 #include "least_trimmed_squares.h"
 #include <stdlib.h>
 #include <stdio.h>

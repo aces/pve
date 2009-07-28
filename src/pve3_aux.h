@@ -1,3 +1,9 @@
+/*
+   Copyright Alan C. Evans
+   Professor of Neurology
+   McGill University
+*/
+
 /* HEADER FOR THE AUXILIARY FUNCTIONS NEEDED BY pve3.c 
    Take a look at .c file for comments on functions. */
 

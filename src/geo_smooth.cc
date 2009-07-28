@@ -1,3 +1,9 @@
+/*
+   Copyright Alan C. Evans
+   Professor of Neurology
+   McGill University
+*/
+
 /**
  * Smoothing by geometric flow.
  **/
@@ -143,6 +149,9 @@ int  main( int ac, char* av[] )
     if (( ac != 5 ) && ( ac != 6)) {
 	cerr << "usage: " << av[0] 
 	     << " dt N input output [-outputsteps]" << endl;
+        cerr << endl << "Copyright Alan C. Evans" << endl
+                     << "Professor of Neurology" << endl
+                     << "McGill University" << endl;
 	return 1;
     }
 

@@ -1,3 +1,9 @@
+/*
+   Copyright Alan C. Evans
+   Professor of Neurology
+   McGill University
+*/
+
 /* PVE_SUPPORT.H
  */
 #ifndef _PVE_SUPPORT_H_

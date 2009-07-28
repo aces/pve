@@ -1,5 +1,11 @@
 #!@PERL@
 
+#
+# Copyright Alan C. Evans
+# Professor of Neurology
+# McGill University
+#
+
 use strict;
 use warnings "all";
 
@@ -23,11 +29,19 @@ than the default you can call one of the binaries directly with a
 
 HELP
 
+my $license = <<LICENSE;
+Copyright Alan C. Evans
+Professor of Neurology
+McGill University
+
+LICENSE
+
 my $usage = <<USAGE;
 usage: 
        $ProgramName [options] input.mnc output_prefix -mask <mask.mnc> -image <classified.mnc>
        $ProgramName -help to list options
 
+$license
 USAGE
 
 Getopt::Tabular::SetHelp ($help, $usage);

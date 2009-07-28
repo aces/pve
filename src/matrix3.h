@@ -1,3 +1,9 @@
+/*
+   Copyright Alan C. Evans
+   Professor of Neurology
+   McGill University
+*/
+
 #ifndef _PVE_MATRIX3_H_
 #define _PVE_MATRIX3_H_ 1
 

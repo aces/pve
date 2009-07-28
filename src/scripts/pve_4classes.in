@@ -1,5 +1,11 @@
 #!@PERL@
 
+#
+# Copyright Alan C. Evans
+# Professor of Neurology
+# McGill University
+#
+
 use strict;
 use warnings "all";
 
@@ -18,11 +24,19 @@ command string. Silly, but true!)
 
 HELP
 
+my $license = <<LICENSE;
+Copyright Alan C. Evans
+Professor of Neurology
+McGill University
+
+LICENSE
+
 my $usage = <<USAGE;
 usage: 
        $ProgramName [options] cls_correct.mnc cls_4classes.mnc
        $ProgramName -help to list options
 
+$license
 USAGE
 
 Getopt::Tabular::SetHelp ($help, $usage);

@@ -1,3 +1,9 @@
+/*
+   Copyright Alan C. Evans
+   Professor of Neurology
+   McGill University
+*/
+
 /* Header for minimum variance ellipse estimator in 1 D. */
 /* Jussi Tohka, jussi.tohka@cs.tut.fi 12th April 2002.  */
 

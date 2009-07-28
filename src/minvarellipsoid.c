@@ -1,3 +1,9 @@
+/*
+   Copyright Alan C. Evans
+   Professor of Neurology
+   McGill University
+*/
+
 #include "minvarellipsoid.h"
 #include <stdlib.h>
 #include <stdio.h>

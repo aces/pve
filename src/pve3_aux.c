@@ -1,3 +1,9 @@
+/*
+   Copyright Alan C. Evans
+   Professor of Neurology
+   McGill University
+*/
+
 /* pve3_aux.c: auxilary functions for pve.c: */
 
 #include "pve3_aux.h"
@@ -38,7 +44,7 @@ void Usage_info(char* pname) {
 		 "\nUsage: %s [<options>] -<np estimator> <estimator_file> -mask <maskfile> <t1> <t2> <pd> <outfile_prefix>\n", pname);
   (void) fprintf(stderr,"        (where -<np estimator> must be either -file, -image or -tags)\n\n");
   (void) fprintf(stderr,"       %s [-help]\n\n", pname);
-
+  (void) fprintf(stderr,"\nCopyright Alan C. Evans\nProfessor of Neurology\nMcGill University\n");
 }
 
 /* -----------------------------------------------------------
