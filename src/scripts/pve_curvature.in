@@ -35,7 +35,7 @@ GetOptions( \@opt_table, \@ARGV )
 
 my $numargs = @ARGV;
 
-if( $numargs != 5 )  {
+if( $numargs != 4 )  {
     warn $Usage;
     die "Incorrect number of arguments\n";
 }
