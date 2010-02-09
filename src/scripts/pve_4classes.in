@@ -51,5 +51,5 @@ my $cls_correct = shift @ARGV;
 my $cls_4classes = shift @ARGV;
 
 my $expression = 'if (A[0] > 3.5 && A[0] < 4.5) { out = 2; } else { out = A[0]; }';
-Spawn( [ "minccalc", "-clobber", "-expression", $expression, $cls_correct, $cls_4classes ] );
+Spawn( [ "minccalc", "-clobber", "-byte", "-expression", $expression, $cls_correct, $cls_4classes ] );
 

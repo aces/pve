@@ -24,7 +24,7 @@
 #define LIKELIHOOD_RANGE_MIN 0.0
 #define LIKELIHOOD_RANGE_MAX 1.0
 
-#define MAXSAMPLES 50000 
+#define MAXSAMPLES 200000
 #define MAXTRIALS 10000
 #define DEFAULT_TAG_FILENAME "/usr/local/mni/data/classify/ntags_1000_prob_90_nobg.tag"
 #define NEIGHBOURHOOD 6     /* These are for image based parameter estimation */
@@ -90,17 +90,17 @@ int Get_params_from_file(char* fn, double* mean, double* var, double* pvmeasurem
 int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volume_subcort,
                                Volume volume_seg, double* mean, 
                                double* var , double* pvmeasurement);
-int Estimate_ml(Volume volume_in,Volume volume_mask,Volume volume_seg,Volume volume_subcort,
-                char ref_label, double* mean,double* var);
-int Estimate_mve(Volume volume_in,Volume volume_mask,Volume volume_seg,Volume volume_subcort,
-                 char ref_label, double* mean,double* var);
-int Estimate_mcd(Volume volume_in,Volume volume_mask,Volume volume_seg,
-		 Volume volume_subcort,char ref_label, double* mean,double* var);
+
+int Estimate_ml( double * samples, long int nofsamples,
+                 double* mean, double* var );
+int Estimate_mve( double * samples, long int nofsamples,
+                  double* mean, double* var );
+int Estimate_mcd( double * samples, long int nofsamples,
+                  double* mean, double* var );
 
 double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
 		       long int* pcount, int neighbourhood);
-double* Collect_values_subcortical(Volume volume_in,Volume volume_subcort, char ref_label,
-		       long int* pcount);
+double* Collect_values_subcortical(Volume volume_in,Volume volume_subcort, long int* pcount);
 
 /* double Estimate_mean(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label);
 double Estimate_variance(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,double mean);
@@ -135,6 +135,8 @@ void Parameter_estimation(Volume volume_in, Volume volume_mask,
 int Parameter_estimation_classified(Volume volume_in, Volume volume_mask, 
                                     Volume volume_subcort, Volume classified, 
                                     double* mean, double* var, double * var_measurement );
+int Compute_final_classification(Volume volume_in, Volume volume_classified,
+                                 Volume final_cls, double * mean, double * var);
 int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
                                    Volume volume_pve[PURE_CLASSES], double* mean);
 int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified,

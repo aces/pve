@@ -152,6 +152,11 @@ int Parameter_estimation_classified3(Volume volume_inT1, Volume volume_inT2, Vol
                                      Volume volume_mask, Volume volume_subcort, Volume classified,
                                      pVector mean[4], pMatrix var[4], pMatrix var_measurement);
 
+int Compute_final_classification3(Volume volume_inT1, Volume volume_inT2, 
+                                  Volume volume_inPD, Volume volume_classified,
+                                  Volume final_cls,
+                                  pVector means[PURE_CLASSES + 1], 
+                                  pMatrix vars[PURE_CLASSES + 1] );
 int Compute_partial_volume_vectors3(Volume volume_inT1, Volume volume_inT2, 
                                     Volume volume_inPD, Volume volume_classified,
                                     Volume volume_pve[PURE_CLASSES],

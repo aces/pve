@@ -76,6 +76,7 @@ int main(int argc, char** argv)
   static int est_params = FALSE;
   static int em_t = FALSE;
   static int mlestimates_t = NOML;
+  static int classify = FALSE;
   static int clobber = FALSE;
   static int use_counter = FALSE;
   static int num_iterations = 0;
@@ -103,6 +104,8 @@ int main(int argc, char** argv)
      "Provide partial volume estimates based on complete model"},
     {"-ml", ARGV_CONSTANT, (char *) ML, (char *) &mlestimates_t, 
      "Provide both simplified and complete model estimates"},
+    {"-classify", ARGV_CONSTANT, (char *) TRUE, (char *) &classify, 
+     "Provide a final classified image based on probabilistic maps (BG,CSF,GM,WM,SC)"},
     {"-mrf",ARGV_FLOAT, (char *) 4, (char *) mrf_params,
      "Parameters to use for Markovian Random Field: beta same similar different"},
     {"-curve",ARGV_STRING,(char *) 1, (char *) &curve_image,
@@ -241,6 +244,13 @@ int main(int argc, char** argv)
       if (file_exists(strcat(filename,"_exactsc.mnc"))) {
 	fprintf(stderr,"Output file(s) exist!\n\n");
 	return (2);
+      }
+    }
+    if (classify) {
+      filename = strcpy(filename,argv[4]);  
+      if (file_exists(strcat(filename,"_classify.mnc"))) {
+        fprintf(stderr,"Output file(s) exist!\n\n");
+        return (2);
       }
     }
   }
@@ -618,48 +628,52 @@ int main(int argc, char** argv)
     iteration++;
   }
   
-  /* Finally estimate the partial volume vectors 
-     but first some memory is freed.*/
+  /* Free memory that is no longer needed beyond this point. */
   
   for(c = 0;c < CLASSES;c++) {
     delete_volume(volume_likelihood[c]);
   }
-
-  /* Allocate the memory for partial volume fractions */
-  printf("Computing partial volume fractions \n");
-  if(!mlestimates_only) {
-    for(c = 0;c < PURE_CLASSES;c++) {
-
-      volume_pve[c] = copy_volume_definition(volume_inT1, NC_UNSPECIFIED, 
-	  FALSE, 0.0 , 0.0);
-      set_volume_real_range( volume_pve[c],
-                         LIKELIHOOD_RANGE_MIN , LIKELIHOOD_RANGE_MAX  );
-    }
-
-    Compute_partial_volume_vectors3(volume_inT1,volume_inT2,volume_inPD,
-                                 volume_classified,volume_pve,
-                                 mean,var,var_measurement);
-    
+  if (use_subcort) {
+    delete_volume(volume_subcort);
   }
-  if(mlestimates) {
-    for(c = 0;c < PURE_CLASSES;c++) {
-      volume_pve_ml[c] = copy_volume_definition(volume_inT1, NC_UNSPECIFIED, 
-	  FALSE, 0.0 , 0.0);
-      set_volume_real_range( volume_pve_ml[c],
-                         LIKELIHOOD_RANGE_MIN , LIKELIHOOD_RANGE_MAX  );
-    }
-  
-    Compute_partial_volume_vectors3_ml(volume_inT1,volume_inT2,volume_inPD,
-                                 volume_classified,volume_pve_ml,
-                                 mean,var,var_measurement);
+  if (use_curve) {
+    delete_volume(volume_curve);
   }
+  delete_volume(volume_mask);
 
   /* write necessary files */
+
   filename = strcpy(filename,argv[4]); 
   output_modified_volume(strcat(filename,"_disc.mnc"),
                          NC_BYTE, FALSE, 0,CLASSES,volume_classified,argv[1],history,
                          (minc_output_options *) NULL);
+  if( classify ) {
+    filename = strcpy(filename,argv[4]); 
+
+    Volume final_cls = copy_volume_definition(volume_inT1, NC_BYTE,
+                                              TRUE, 0, 255); 
+    set_volume_real_range( final_cls, 0, 255 );
+    Compute_final_classification3(volume_inT1,volume_inT2,volume_inPD,
+                                  volume_classified,final_cls,mean,var);
+
+    output_modified_volume(strcat(filename,"_classify.mnc"),
+                           NC_BYTE, FALSE, 0, 255, final_cls, argv[1],
+                           history, (minc_output_options *) NULL);
+    delete_volume(final_cls);
+  }
+
   if(!mlestimates_only) {
+    /* Allocate the memory for partial volume fractions */
+    printf("Computing partial volume fractions (linear)\n");
+    for(c = 0;c < PURE_CLASSES;c++) {
+      volume_pve[c] = copy_volume_definition(volume_inT1, NC_UNSPECIFIED, 
+                                             FALSE, 0.0 , 0.0);
+      set_volume_real_range( volume_pve[c],
+                         LIKELIHOOD_RANGE_MIN , LIKELIHOOD_RANGE_MAX  );
+    }
+    Compute_partial_volume_vectors3(volume_inT1,volume_inT2,volume_inPD,
+                                 volume_classified,volume_pve,
+                                 mean,var,var_measurement);
     filename = strcpy(filename,argv[4]); 
     output_modified_volume(strcat(filename,"_wm.mnc"),
                           NC_UNSPECIFIED, FALSE, 0,0,volume_pve[WMLABEL - 1],argv[1],history,
@@ -678,8 +692,25 @@ int main(int argc, char** argv)
 			     NC_UNSPECIFIED, FALSE, 0,0,volume_pve[SCLABEL - 1],argv[1],history,
 			     (minc_output_options *) NULL);
     }
+    for(c = 0;c < PURE_CLASSES;c++) { 
+      delete_volume(volume_pve[c]);
+    }
   }
+
   if(mlestimates) {
+    /* Allocate the memory for partial volume fractions */
+    printf("Computing partial volume fractions (ml)\n");
+
+    for(c = 0;c < PURE_CLASSES;c++) {
+      volume_pve_ml[c] = copy_volume_definition(volume_inT1, NC_UNSPECIFIED, 
+	  FALSE, 0.0 , 0.0);
+      set_volume_real_range( volume_pve_ml[c],
+                         LIKELIHOOD_RANGE_MIN , LIKELIHOOD_RANGE_MAX  );
+    }
+  
+    Compute_partial_volume_vectors3_ml(volume_inT1,volume_inT2,volume_inPD,
+                                 volume_classified,volume_pve_ml,
+                                 mean,var,var_measurement);
     filename = strcpy(filename,argv[4]); 
     output_modified_volume(strcat(filename,"_exactwm.mnc"),
                           NC_UNSPECIFIED, FALSE, 0,0,volume_pve_ml[WMLABEL - 1],argv[1],history,
@@ -697,6 +728,9 @@ int main(int argc, char** argv)
       output_modified_volume(strcat(filename,"_exactsc.mnc"),
 			     NC_UNSPECIFIED, FALSE, 0,0,volume_pve[SCLABEL - 1],argv[1],history,
 			     (minc_output_options *) NULL);
+    } 
+    for(c = 0;c < PURE_CLASSES;c++) { 
+      delete_volume(volume_pve_ml[c]);
     }
   } 
 
@@ -712,27 +746,7 @@ int main(int argc, char** argv)
   delete_volume(volume_inT1);
   delete_volume(volume_inT2);
   delete_volume(volume_inPD);
-  delete_volume(volume_mask);
   delete_volume(volume_classified);
-
-  if (use_curve) {
-    delete_volume(volume_curve);
-  }
-  if (use_subcort) {
-    delete_volume(volume_subcort);
-  }
-
-  if(!mlestimates_only) {
-    for(c = 0;c < PURE_CLASSES;c++) { 
-      delete_volume(volume_pve[c]);
-    }
-  }
-  if(mlestimates) {
-    for(c = 0;c < PURE_CLASSES;c++) { 
-      delete_volume(volume_pve_ml[c]);
-    }
-  }
-
   return(0);
 }
 

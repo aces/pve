@@ -1166,135 +1166,15 @@ int Parameter_estimation_classified3(Volume volume_inT1, Volume volume_inT2, Vol
                                      pVector mean[PURE_CLASSES+1], pMatrix var[PURE_CLASSES+1],
                                      pMatrix var_measurement) {
 
-  int i,j,k,count,sizes[MAX_DIMENSIONS];
-  char c, label;
-  double total_probability;
-  double t;  /* mixing proportion to be estimated */
-  int adapt_var_measurement = 0;
-  Vector3D value;
-  Vector3D diff1,diff2;
-  Matrix3D var_tmp;
-  Matrix3D inv_var_wmgm,inv_var_gmcsf,inv_var_csfbg,inv_var_scgm,inv_var_wmsc;
+  char c, i;
   Volume pve_cls;
 
-  get_volume_sizes(volume_inT1,sizes);
   pve_cls = copy_volume_definition(volume_inT1, NC_BYTE, TRUE, 0 , PURE_CLASSES); 
   set_volume_real_range( pve_cls, 0, PURE_CLASSES );
 
-  /* Approximate partial volume covariances by choosing t = 0.5 */
-  /* Covariances are treated as constants although they are not */
-
-  AddMatrices(var[WMLABEL],var[GMLABEL],var_tmp);
-  ScalarMultiply(var_tmp,0.25,var_tmp);
-  AddMatrices(var_tmp,var_measurement,var_tmp);
-  Invert(var_tmp,inv_var_wmgm);
-
-  AddMatrices(var[GMLABEL],var[CSFLABEL],var_tmp);
-  ScalarMultiply(var_tmp,0.25,var_tmp);
-  AddMatrices(var_tmp,var_measurement,var_tmp);
-  Invert(var_tmp,inv_var_gmcsf);
-
-  AddMatrices(var[BGLABEL],var[CSFLABEL],var_tmp);
-  ScalarMultiply(var_tmp,0.25,var_tmp);
-  AddMatrices(var_tmp,var_measurement,var_tmp);
-  Invert(var_tmp,inv_var_csfbg);
-
-  AddMatrices(var[SCLABEL],var[GMLABEL],var_tmp);
-  ScalarMultiply(var_tmp,0.25,var_tmp);
-  AddMatrices(var_tmp,var_measurement,var_tmp);
-  Invert(var_tmp,inv_var_scgm);
-
-  AddMatrices(var[WMLABEL],var[SCLABEL],var_tmp);
-  ScalarMultiply(var_tmp,0.25,var_tmp);
-  AddMatrices(var_tmp,var_measurement,var_tmp);
-  Invert(var_tmp,inv_var_wmsc);
-
   /* Compute new classification based on partial estimates (simplified model). */
-
-  for( i = 0; i < sizes[0];i++) {
-    for( j = 0;j < sizes[1];j++) {
-      for( k = 0; k < sizes[2]; k++) {
-        c = get_volume_real_value(classified,i,j,k,0,0);
-	label = BGLABEL;
-	switch(c) {
-	case BGLABEL:
-        case WMLABEL:
-        case GMLABEL:
-        case CSFLABEL:
-	case SCLABEL: label = c; break;
-        case WMGMLABEL:
-             InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
-                              get_volume_real_value(volume_inT2,i,j,k,0,0),
-                              get_volume_real_value(volume_inPD,i,j,k,0,0));
-             SubtractVectors(value,mean[GMLABEL],diff1);
-             SubtractVectors(mean[WMLABEL],mean[GMLABEL],diff2);
-             t = QuadraticForm2(inv_var_wmgm,diff1,diff2)/QuadraticForm(inv_var_wmgm,diff2);
-             Limit_0_1(&t);
-             if( t > 0.5 ) {
-               label = WMLABEL;
-             } else {
-               label = GMLABEL;
-             }
-        case GMCSFLABEL:
-             InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
-                              get_volume_real_value(volume_inT2,i,j,k,0,0),
-                              get_volume_real_value(volume_inPD,i,j,k,0,0));
-             SubtractVectors(value,mean[CSFLABEL],diff1);
-             SubtractVectors(mean[GMLABEL],mean[CSFLABEL],diff2);
-             t = QuadraticForm2(inv_var_gmcsf,diff1,diff2)/QuadraticForm(inv_var_gmcsf,diff2);
-             Limit_0_1(&t);
-             if( t > 0.5 ) {
-               label = GMLABEL;
-             } else {
-               label = CSFLABEL;
-             }
-             break;
-        case CSFBGLABEL:
-             InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
-                              get_volume_real_value(volume_inT2,i,j,k,0,0),
-                              get_volume_real_value(volume_inPD,i,j,k,0,0));
-             SubtractVectors(value,mean[BGLABEL],diff1);
-             SubtractVectors(mean[CSFLABEL],mean[BGLABEL],diff2);
-             t = QuadraticForm2(inv_var_csfbg,diff1,diff2)/QuadraticForm(inv_var_csfbg,diff2);
-             Limit_0_1(&t);
-             if( t > 0.5 ) {
-               label = CSFLABEL;
-             }
-             break;
-        case WMSCLABEL:
-             InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
-                              get_volume_real_value(volume_inT2,i,j,k,0,0),
-                              get_volume_real_value(volume_inPD,i,j,k,0,0));
-             SubtractVectors(value,mean[SCLABEL],diff1);
-             SubtractVectors(mean[WMLABEL],mean[SCLABEL],diff2);
-             t = QuadraticForm2(inv_var_wmsc,diff1,diff2)/QuadraticForm(inv_var_wmsc,diff2);
-             Limit_0_1(&t);
-             if( t > 0.5 ) {
-               label = WMLABEL;
-             } else {
-               label = SCLABEL;
-             }
-             break;
-        case SCGMLABEL:
-             InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
-                              get_volume_real_value(volume_inT2,i,j,k,0,0),
-                              get_volume_real_value(volume_inPD,i,j,k,0,0));
-             SubtractVectors(value,mean[GMLABEL],diff1);
-             SubtractVectors(mean[SCLABEL],mean[GMLABEL],diff2);
-             t = QuadraticForm2(inv_var_scgm,diff1,diff2)/QuadraticForm(inv_var_scgm,diff2);
-             Limit_0_1(&t);
-             if( t > 0.5 ) {
-               label = SCLABEL;
-             } else {
-               label = GMLABEL;
-             }
-             break;	    
-        default: break;
-        }
-        set_volume_real_value(pve_cls,i,j,k,0,0,label);
-      }
-    }
-  }
+  Compute_final_classification3( volume_inT1, volume_inT2, volume_inPD, 
+                                 classified, pve_cls, mean, var );
 
   /* Print old parameters for the reference */
   printf("WM mean");
@@ -1366,6 +1246,93 @@ int Parameter_estimation_classified3(Volume volume_inT1, Volume volume_inT2, Vol
   delete_volume(pve_cls);
 
   return( err_mean > 0.001 );
+}
+
+/* Compute a final classification of the pure classes based on the
+   probabilistics maps (not the same as using the partial volume
+   vectors).
+ */
+
+int Compute_final_classification3( Volume volume_inT1, Volume volume_inT2, 
+                                   Volume volume_inPD, Volume classified,
+                                   Volume pve_cls,
+                                   pVector mean[PURE_CLASSES+1], 
+                                   pMatrix var[PURE_CLASSES+1] ) {
+
+  char c, label;
+  int i,j,k,count,sizes[MAX_DIMENSIONS];
+  Vector3D value;
+  double   t1, t2;
+
+  get_volume_sizes(volume_inT1,sizes);
+
+  for( i = 0; i < sizes[0];i++) {
+    for( j = 0;j < sizes[1];j++) {
+      for( k = 0; k < sizes[2]; k++) {
+        c = get_volume_real_value(classified,i,j,k,0,0);
+	label = BGLABEL;
+	switch(c) {
+	case BGLABEL:
+        case WMLABEL:
+        case GMLABEL:
+        case CSFLABEL:
+	case SCLABEL: label = c; break;
+        case CSFBGLABEL: label = CSFLABEL; break;
+        case WMGMLABEL:
+             InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
+                              get_volume_real_value(volume_inT2,i,j,k,0,0),
+                              get_volume_real_value(volume_inPD,i,j,k,0,0));
+             t1 = Compute_Gaussian_likelihood3(value,mean[GMLABEL],var[GMLABEL]);
+             t2 = Compute_Gaussian_likelihood3(value,mean[WMLABEL],var[WMLABEL]);
+             if( t1 >= t2 ) {
+               label = GMLABEL;
+             } else {
+               label = WMLABEL;
+             }
+             break;
+        case GMCSFLABEL:
+             InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
+                              get_volume_real_value(volume_inT2,i,j,k,0,0),
+                              get_volume_real_value(volume_inPD,i,j,k,0,0));
+             t1 = Compute_Gaussian_likelihood3(value,mean[GMLABEL],var[GMLABEL]);
+             t2 = Compute_Gaussian_likelihood3(value,mean[CSFLABEL],var[CSFLABEL]);
+             if( t1 >= t2 ) {
+               label = GMLABEL;
+             } else {
+               label = CSFLABEL;
+             }
+             break;
+        case WMSCLABEL:
+             InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
+                              get_volume_real_value(volume_inT2,i,j,k,0,0),
+                              get_volume_real_value(volume_inPD,i,j,k,0,0));
+             t1 = Compute_Gaussian_likelihood3(value,mean[WMLABEL],var[WMLABEL]);
+             t2 = Compute_Gaussian_likelihood3(value,mean[SCLABEL],var[SCLABEL]);
+             if( t1 >= t2 ) {
+               label = WMLABEL;
+             } else {
+               label = SCLABEL;
+             }
+             break;
+        case SCGMLABEL:
+             InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
+                              get_volume_real_value(volume_inT2,i,j,k,0,0),
+                              get_volume_real_value(volume_inPD,i,j,k,0,0));
+             t1 = Compute_Gaussian_likelihood3(value,mean[GMLABEL],var[GMLABEL]);
+             t2 = Compute_Gaussian_likelihood3(value,mean[SCLABEL],var[SCLABEL]);
+             if( t1 >= t2 ) {
+               label = GMLABEL;
+             } else {
+               label = SCLABEL;
+             }
+             break;	    
+        default: break;
+        }
+        set_volume_real_value(pve_cls,i,j,k,0,0,label);
+      }
+    }
+  }
+  return(0);
 }
 
 /* And finally, a function that calculates the partial volume vectors:

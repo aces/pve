@@ -1,4 +1,15 @@
-2009-07-28  Claude Lepage      <claude@bic.mni.mcgill.ca>
+2010-02-09  Claude Lepage   <claude@bic.mni.mcgill.ca>
+        * Use -byte in discretize_pve
+        * Fix bug with downsampling for MVE and MCD (was never done before)
+        * Test for background class in discretize_pve to prevent rounding errors
+          when background is a very small positive value (would make bg to be wm)
+
+2009-10-02  Claude Lepage   <claude@bic.mni.mcgill.ca>
+        * Add -classify option to save final classification of pure
+          classes based on probabilistic maps, not maximum likelihoods
+        * Optimize some memory usage when saving likelihoods
+
+2009-07-28  Claude Lepage   <claude@bic.mni.mcgill.ca>
         * New license Copyright Alan C. Evans
 
 2009-07-07      Claude Lepage   <claude@bic.mni.mcgill.ca>

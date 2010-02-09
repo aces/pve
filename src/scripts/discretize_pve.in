@@ -69,16 +69,18 @@ if (-e $output && !$Clobber) {
 
 RegisterPrograms(["minccalc"]);
 AddDefaultArgs('minccalc', ['-clobber']) if ($Clobber);
+AddDefaultArgs('minccalc', ['-byte']);
+AddDefaultArgs('minccalc', ['-quiet']) if (!$Verbose);
 
 if ($numargs == 4) {
-  Spawn(['minccalc', '-expression' ,'if (A[0] > A[1] && A[0] > A[2]) 1 else if (A[1] > A[2]) 2 else if (A[2] > 0) 3 else 0', $csf, $gm, $wm, $output]);
+  Spawn(['minccalc', '-expression' ,'if (A[0] > A[1] && A[0] > A[2] && A[0] > 1.0 - A[0] - A[1] - A[2] ) 1 else if (A[1] > A[2] && A[1] > 1.0 - A[0] - A[1] - A[2] ) 2 else if (A[2] > 0 && A[2] > 1.0 - A[0] - A[1] - A[2] ) 3 else 0', $csf, $gm, $wm, $output]);
 }
 elsif ($sctowm) {
-  Spawn(['minccalc','-expression','if (A[0] > A[1] && A[0] > A[2] && A[0] > A[3]) 1 else if (A[1] > A[2] && A[1] > A[3]) 2 else if (A[2] > 0 || A[3] > 0) 3 else 0',
+  Spawn(['minccalc','-expression','if (A[0] > A[1] && A[0] > A[2] && A[0] > A[3] && A[0] > 1.0 - A[0] - A[1] - A[2] - A[3] ) 1 else if (A[1] > A[2] && A[1] > A[3] && A[1] > 1.0 - A[0] - A[1] - A[2] - A[3] ) 2 else if ( ( A[2] > 0 && A[2] > 1.0 - A[0] - A[1] - A[2] - A[3] ) || ( A[3] > 0 && A[3] > 1.0 - A[0] - A[1] - A[2] - A[3] ) ) 3 else 0',
 	 $csf,$gm,$wm,$sc,$output]);
 }
 else {
-  Spawn(['minccalc','-expression','if (A[0] > A[1] && A[0] > A[2] && A[0] > A[3]) 1 else if (A[1] > A[2] && A[1] > A[3]) 2 else if (A[2] > A[3]) 3 else if (A[3] > 0) 4 else 0',
+  Spawn(['minccalc','-expression','if (A[0] > A[1] && A[0] > A[2] && A[0] > A[3] && A[0] > 1.0 - A[0] - A[1] - A[2] - A[3] ) 1 else if (A[1] > A[2] && A[1] > A[3] && A[1] > 1.0 - A[0] - A[1] - A[2] - A[3] ) 2 else if (A[2] > A[3] && A[2] > 1.0 - A[0] - A[1] - A[2] - A[3] ) 3 else if (A[3] > 0 && A[3] > 1.0 - A[0] - A[1] - A[2] - A[3] ) 4 else 0',
 	 $csf,$gm,$wm,$sc,$output]);
 }
 
