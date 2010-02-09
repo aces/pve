@@ -468,7 +468,6 @@ int main(int argc, char** argv)
                     val[max_class-1] = 1.0;
                     Normalize(val,CLASSES);
                   } else {
-                    val[CSFLABEL-1] = 1.0;
                     printf( "Warning: Voxel (%d,%d,%d) out of range with value %g\n",
                             i, j, k, value );
                   }

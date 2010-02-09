@@ -1,11 +1,7 @@
 
 New in release 1.2.0:
         * New license Copyright Alan C. Evans
-	* Use -byte in discretize_pve
-        * Test for background class in discretize_pve to prevent rounding errors
-          when background is a very small positive value (would make bg to be wm).
         * Check for memory allocation on minc volume (done for pve, not yet for pve3)
-        * Fix bug with downsampling for MVE and MCD (was never done before)
 
 New in release 1.1.6:
         * Speed optimizations: use Gauss-Legendre quadrature of order 4 to
