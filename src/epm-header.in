@@ -7,5 +7,6 @@
 %description Partial Volume Estimation
 %version @VERSION@
 %requires netcdf
+%requires hdf5
 %requires minc
 %requires volume_io
