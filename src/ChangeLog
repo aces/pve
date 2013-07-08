@@ -1,3 +1,8 @@
+2011-07-13  Claude Lepage      <claude@bic.mni.mcgill.ca>
+        * pve_script, pve, pve3: default is now -mlonly to produce
+          exact maximum likelihood estimates
+        * clean-up memory frees to reduce peak memory on pve files
+
 2010-02-09  Claude Lepage   <claude@bic.mni.mcgill.ca>
         * Use -byte in discretize_pve
         * Fix bug with downsampling for MVE and MCD (was never done before)

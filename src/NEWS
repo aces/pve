@@ -1,3 +1,7 @@
+New in release 1.3.0:
+        * pve_script, pve, pve3: default is now -mlonly to produce
+          exact maximum likelihood estimates
+
 New in release 1.2.1:
         * Use -byte in discretize_pve
         * Fix bug with downsampling for MVE and MCD (was never done before)

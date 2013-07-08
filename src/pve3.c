@@ -33,6 +33,18 @@
 #include <time_stamp.h>
 #include "ParseArgv.h"
 
+/* Moved here to avoid multiple definitions */
+const char POTTS_LOOKUP_TABLE[CLASSES + 1][CLASSES + 1] = {{0, 0, 0, 0, 0, 0, 0, 1, 0, 0},
+                                                           {0, 0, 0, 0, 0, 1, 0, 1, 0, 0},
+                                                           {0, 0, 0, 0, 0, 1, 1, 0, 0, 1},
+                                                           {0, 0, 0, 0, 0, 0, 1, 0, 1, 0},
+                                                           {0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
+                                                           {0, 1, 1, 0, 0, 0, 0, 0, 0, 0},
+                                                           {0, 0, 1, 1, 0, 0, 0, 0, 0, 0},
+                                                           {1, 1, 0, 0, 0, 0, 0, 0, 0, 0},
+							   {0, 0, 0, 1, 1, 0, 0, 0, 0, 0},
+							   {0, 0, 1, 0, 1, 0, 0, 0, 0, 0}};
+
 int main(int argc, char** argv)
 
 {
@@ -58,8 +70,6 @@ int main(int argc, char** argv)
 
   BOOLEAN changed;
   BOOLEAN em = FALSE;
-  BOOLEAN mlestimates = FALSE;
-  BOOLEAN mlestimates_only = FALSE;
   BOOLEAN use_curve = FALSE;
   BOOLEAN use_steady_state = TRUE;
   BOOLEAN use_subcort = FALSE;
@@ -75,7 +85,7 @@ int main(int argc, char** argv)
   static char* subcort_image = NULL;
   static int est_params = FALSE;
   static int em_t = FALSE;
-  static int mlestimates_t = NOML;
+  static int mlestimates_t = MLONLY;
   static int classify = FALSE;
   static int clobber = FALSE;
   static int use_counter = FALSE;
@@ -101,7 +111,7 @@ int main(int argc, char** argv)
     {"-noml",ARGV_CONSTANT, (char *) NOML, (char *) &mlestimates_t,
      "Provide partial volume estimates based on simplified model"},
     {"-mlonly",ARGV_CONSTANT, (char *) MLONLY, (char *) &mlestimates_t,
-     "Provide partial volume estimates based on complete model"},
+     "Provide partial volume estimates based on complete model (default)"},
     {"-ml", ARGV_CONSTANT, (char *) ML, (char *) &mlestimates_t, 
      "Provide both simplified and complete model estimates"},
     {"-classify", ARGV_CONSTANT, (char *) TRUE, (char *) &classify, 
@@ -184,13 +194,6 @@ int main(int argc, char** argv)
     exit(EXIT_FAILURE);
   }
 
-  if (mlestimates_t == MLONLY) {
-    mlestimates_only = TRUE;
-  }
-  else if (mlestimates_t == ML) {
-    mlestimates = TRUE;
-  }
-	
   if (em_t == TRUE) {
     em = TRUE;
   }
@@ -202,7 +205,7 @@ int main(int argc, char** argv)
       fprintf(stderr,"Output file(s) exist!\n\n");
       return (2);  
     }
-    if (!mlestimates_only) {      
+    if (mlestimates_t == ML || mlestimates_t == NOML) {      
       filename = strcpy(filename,argv[4]);  
       if (file_exists(strcat(filename,"_csf.mnc"))) {
 	fprintf(stderr,"Output file(s) exist!\n\n");
@@ -218,13 +221,15 @@ int main(int argc, char** argv)
 	fprintf(stderr,"Output file(s) exist!\n\n");
 	return (2);
       }
-      filename = strcpy(filename,argv[4]);  
-      if (file_exists(strcat(filename,"_sc.mnc"))) {
-	fprintf(stderr,"Output file(s) exist!\n\n");
-	return (2);
+      if( subcort_image ) {
+        filename = strcpy(filename,argv[4]);  
+        if (file_exists(strcat(filename,"_sc.mnc"))) {
+	  fprintf(stderr,"Output file(s) exist!\n\n");
+	  return (2);
+        }
       }
     }
-    if (mlestimates) {
+    if (mlestimates_t == MLONLY) {      
       filename = strcpy(filename,argv[4]);  
       if (file_exists(strcat(filename,"_exactcsf.mnc"))) {
 	fprintf(stderr,"Output file(s) exist!\n\n");
@@ -240,10 +245,12 @@ int main(int argc, char** argv)
 	fprintf(stderr,"Output file(s) exist!\n\n");
 	return (2);
       }
-      filename = strcpy(filename,argv[4]);  
-      if (file_exists(strcat(filename,"_exactsc.mnc"))) {
-	fprintf(stderr,"Output file(s) exist!\n\n");
-	return (2);
+      if( subcort_image ) {
+        filename = strcpy(filename,argv[4]);  
+        if (file_exists(strcat(filename,"_exactsc.mnc"))) {
+	  fprintf(stderr,"Output file(s) exist!\n\n");
+	  return (2);
+        }
       }
     }
     if (classify) {
@@ -364,10 +371,6 @@ int main(int argc, char** argv)
                          LIKELIHOOD_RANGE_MIN , LIKELIHOOD_RANGE_MAX );
   }
  
-  volume_classified = copy_volume_definition(volume_inT1, NC_BYTE, 
-	  TRUE, 0 , CLASSES); 
-  set_volume_real_range( volume_classified, 0, CLASSES);
-
   /* Calculate the likelihoods */
   
   get_volume_sizes( volume_inT1, sizes ); 
@@ -411,11 +414,15 @@ int main(int argc, char** argv)
     }
   }
 
+  volume_classified = copy_volume_definition(volume_inT1, NC_BYTE, 
+	  TRUE, 0 , CLASSES); 
+  set_volume_real_range( volume_classified, 0, CLASSES);
+
   printf("Same %lf \n",mrf_params[SAME]);
   printf("Similar %lf \n",mrf_params[SMLR]);
   printf("Different %lf \n",mrf_params[DIFF]);
-  printf("Only ml estimates: %d \n",mlestimates_only);
-  printf("ml estimates: %d \n",mlestimates);
+  printf("Exact ml estimates: %d \n",(int)(mlestimates_t==MLONLY||mlestimates_t==ML));
+  printf("Simplified ml estimates: %d \n",(int)(mlestimates_t==NOML||mlestimates_t==ML));
   printf("Parameter updates: %d \n", em);
 
   iteration = 1;   /* Start the iterative algorithm */
@@ -643,10 +650,15 @@ int main(int argc, char** argv)
 
   /* write necessary files */
 
-  filename = strcpy(filename,argv[4]); 
-  output_modified_volume(strcat(filename,"_disc.mnc"),
-                         NC_BYTE, FALSE, 0,CLASSES,volume_classified,argv[1],history,
-                         (minc_output_options *) NULL);
+  //output count of of the number of times every voxel has changed class
+  if (use_counter) {
+    filename = strcpy(filename,argv[4]); 
+    output_modified_volume(strcat(filename,"_count.mnc"),
+			   NC_UNSPECIFIED, FALSE, 0,0,volume_count,argv[1],history,
+			   (minc_output_options *) NULL); 
+    delete_volume(volume_count);
+  }
+
   if( classify ) {
     filename = strcpy(filename,argv[4]); 
 
@@ -662,18 +674,20 @@ int main(int argc, char** argv)
     delete_volume(final_cls);
   }
 
-  if(!mlestimates_only) {
+  if(mlestimates_t==NOML || mlestimates_t==ML) {
     /* Allocate the memory for partial volume fractions */
-    printf("Computing partial volume fractions (linear)\n");
     for(c = 0;c < PURE_CLASSES;c++) {
+
       volume_pve[c] = copy_volume_definition(volume_inT1, NC_UNSPECIFIED, 
-                                             FALSE, 0.0 , 0.0);
+	  FALSE, 0.0 , 0.0);
       set_volume_real_range( volume_pve[c],
                          LIKELIHOOD_RANGE_MIN , LIKELIHOOD_RANGE_MAX  );
     }
+    printf("Computing fast partial volume fractions \n");
     Compute_partial_volume_vectors3(volume_inT1,volume_inT2,volume_inPD,
                                  volume_classified,volume_pve,
                                  mean,var,var_measurement);
+
     filename = strcpy(filename,argv[4]); 
     output_modified_volume(strcat(filename,"_wm.mnc"),
                           NC_UNSPECIFIED, FALSE, 0,0,volume_pve[WMLABEL - 1],argv[1],history,
@@ -697,10 +711,8 @@ int main(int argc, char** argv)
     }
   }
 
-  if(mlestimates) {
+  if(mlestimates_t==MLONLY || mlestimates_t==ML) {
     /* Allocate the memory for partial volume fractions */
-    printf("Computing partial volume fractions (ml)\n");
-
     for(c = 0;c < PURE_CLASSES;c++) {
       volume_pve_ml[c] = copy_volume_definition(volume_inT1, NC_UNSPECIFIED, 
 	  FALSE, 0.0 , 0.0);
@@ -708,6 +720,7 @@ int main(int argc, char** argv)
                          LIKELIHOOD_RANGE_MIN , LIKELIHOOD_RANGE_MAX  );
     }
   
+    printf("Computing ml partial volume fractions \n");
     Compute_partial_volume_vectors3_ml(volume_inT1,volume_inT2,volume_inPD,
                                  volume_classified,volume_pve_ml,
                                  mean,var,var_measurement);
@@ -728,36 +741,23 @@ int main(int argc, char** argv)
       output_modified_volume(strcat(filename,"_exactsc.mnc"),
 			     NC_UNSPECIFIED, FALSE, 0,0,volume_pve[SCLABEL - 1],argv[1],history,
 			     (minc_output_options *) NULL);
-    } 
+    }
     for(c = 0;c < PURE_CLASSES;c++) { 
       delete_volume(volume_pve_ml[c]);
     }
-  } 
-
-  //output count of of the number of times every voxel has changed class
-  if (use_counter) {
-    filename = strcpy(filename,argv[4]); 
-    output_modified_volume(strcat(filename,"_count.mnc"),
-			   NC_UNSPECIFIED, FALSE, 0,0,volume_count,argv[1],history,
-			   (minc_output_options *) NULL); 
   }
+
+  filename = strcpy(filename,argv[4]); 
+  output_modified_volume(strcat(filename,"_disc.mnc"),
+                         NC_BYTE, FALSE, 0,CLASSES,volume_classified,argv[1],history,
+                         (minc_output_options *) NULL);
 
   /* Free memory */
   delete_volume(volume_inT1);
   delete_volume(volume_inT2);
   delete_volume(volume_inPD);
   delete_volume(volume_classified);
+
   return(0);
 }
 
-/* Moved here to avoid multiple definitions */
-const char POTTS_LOOKUP_TABLE[CLASSES + 1][CLASSES + 1] = {{0, 0, 0, 0, 0, 0, 0, 1, 0, 0},
-                                                           {0, 0, 0, 0, 0, 1, 0, 1, 0, 0},
-                                                           {0, 0, 0, 0, 0, 1, 1, 0, 0, 1},
-                                                           {0, 0, 0, 0, 0, 0, 1, 0, 1, 0},
-                                                           {0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
-                                                           {0, 1, 1, 0, 0, 0, 0, 0, 0, 0},
-                                                           {0, 0, 1, 1, 0, 0, 0, 0, 0, 0},
-                                                           {1, 1, 0, 0, 0, 0, 0, 0, 0, 0},
-							   {0, 0, 0, 1, 1, 0, 0, 0, 0, 0},
-							   {0, 0, 1, 0, 1, 0, 0, 0, 0, 0}};

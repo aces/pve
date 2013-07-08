@@ -1499,6 +1499,67 @@ int Compute_partial_volume_vectors3(Volume volume_inT1, Volume volume_inT2,
   return(0);
 }
 
+/* Little function to find the maximum likelihood of two classes.
+   Assume mean1 > mean2. This function is more precise than the
+   one in the original code (at the same number of function
+   evaluations - 100).
+ */
+
+double solve3_ml( Vector3D value, Vector3D mean1, Vector3D mean2, Matrix3D var1, Matrix3D var2,
+                  pMatrix var_measurement ) {
+
+  int n, nn;
+  Vector3D mean_tmp1,mean_tmp2;
+  Matrix3D var_tmp1,var_tmp2;
+
+  int maxindex = 0;
+  double maxvalue = -1.0;
+  int maxN = 50;
+
+  for(n = 0;n <= maxN;n++) {
+    ScalarMultiplyVector(mean1,((double) n)/maxN,mean_tmp1);
+    ScalarMultiplyVector(mean2,1 - ((double) n)/maxN,mean_tmp2);
+    AddVectors(mean_tmp1,mean_tmp2,mean_tmp1);
+
+    ScalarMultiply(var1,pow(((double) n)/maxN,2),var_tmp1);
+    ScalarMultiply(var2,pow(1 - ((double) n)/maxN,2),var_tmp2);
+    AddMatrices(var_tmp1,var_tmp2,var_tmp1);
+    AddMatrices(var_tmp1,var_measurement,var_tmp1);
+
+    double prob = Compute_Gaussian_likelihood3(value,mean_tmp1,var_tmp1);
+
+    if(prob > maxvalue) {
+      maxvalue = prob;
+      maxindex = n;
+    }
+  }
+
+  maxN *= 25;
+  maxindex = (maxindex-1)*25;
+  n = maxindex;
+  maxvalue = -1;
+  for( nn = 0; nn <= 50; nn++, n++) {
+    if( n < 0 || n > maxN ) continue;
+
+    ScalarMultiplyVector(mean1,((double) n)/maxN,mean_tmp1);
+    ScalarMultiplyVector(mean2,1 - ((double) n)/maxN,mean_tmp2);
+    AddVectors(mean_tmp1,mean_tmp2,mean_tmp1);
+
+    ScalarMultiply(var1,pow(((double) n)/maxN,2),var_tmp1);
+    ScalarMultiply(var2,pow(1 - ((double) n)/maxN,2),var_tmp2);
+    AddMatrices(var_tmp1,var_tmp2,var_tmp1);
+    AddMatrices(var_tmp1,var_measurement,var_tmp1);
+
+    double prob = Compute_Gaussian_likelihood3(value,mean_tmp1,var_tmp1);
+
+    if(prob > maxvalue) {
+      maxvalue = prob;
+      maxindex = n;
+    }
+  }
+
+  return( (double)maxindex/maxN );
+}
 
 /* And finally, a function that calculates the partial volume vectors based on exact 
    Maximum likelihood criterion. Uses grid search, but should not be too time taking. 
@@ -1507,25 +1568,18 @@ int Compute_partial_volume_vectors3(Volume volume_inT1, Volume volume_inT2,
  */
 
 int Compute_partial_volume_vectors3_ml(Volume volume_inT1, Volume volume_inT2, 
-                                    Volume volume_inPD, Volume volume_classified,
-                                    Volume volume_pve[PURE_CLASSES],
-                                    pVector means[PURE_CLASSES + 1], 
-                                    pMatrix vars[PURE_CLASSES + 1], pMatrix var_measurement )
+                                       Volume volume_inPD, Volume volume_classified,
+                                       Volume volume_pve[PURE_CLASSES],
+                                       pVector means[PURE_CLASSES + 1], 
+                                       pMatrix vars[PURE_CLASSES + 1], pMatrix var_measurement )
 {
   int sizes[MAX_DIMENSIONS];
-  int i,j,k,n;
+  int i,j,k;
   char c;
   double t;  /* mixing proportion to be estimated */
-  double prob;
   Vector3D value;
-  Vector3D mean_tmp1,mean_tmp2;
-  double maxvalue = - 1.0;
-  int maxindex = 0;
-
-  Matrix3D var_tmp1,var_tmp2;
 
   get_volume_sizes(volume_inT1,sizes);
-   
  
   for( i = 0; i < sizes[0];i++) {
     for( j = 0;j < sizes[1];j++) {
@@ -1566,25 +1620,10 @@ int Compute_partial_volume_vectors3_ml(Volume volume_inT1, Volume volume_inT2,
              InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
                               get_volume_real_value(volume_inT2,i,j,k,0,0),
                               get_volume_real_value(volume_inPD,i,j,k,0,0));
-             maxvalue = -1.0;
-             maxindex = 0;
-             for(n = 0;n < 101;n++) {
-               ScalarMultiplyVector(means[WMLABEL],((double) n)/100,mean_tmp1);
-               ScalarMultiplyVector(means[GMLABEL],1 - ((double) n)/100,mean_tmp2);
-               AddVectors(mean_tmp1,mean_tmp2,mean_tmp1);
 
-               ScalarMultiply(vars[WMLABEL],pow(((double) n)/100,2),var_tmp1);
-               ScalarMultiply(vars[GMLABEL],pow(1 - ((double) n)/100,2),var_tmp2);
-               AddMatrices(var_tmp1,var_tmp2,var_tmp1);
-               AddMatrices(var_tmp1,var_measurement,var_tmp1);
-               prob = Compute_Gaussian_likelihood3(value,mean_tmp1,var_tmp1);
-               if(prob > maxvalue) {
-                 maxvalue = prob;
-                 maxindex = n;
-               }
-	     }
-             
-             t = ((double) maxindex)/100;  
+             t = solve3_ml( value, means[WMLABEL], means[GMLABEL], vars[WMLABEL], 
+                            vars[GMLABEL], var_measurement );
+
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,t);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,1 - t);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);  
@@ -1594,25 +1633,10 @@ int Compute_partial_volume_vectors3_ml(Volume volume_inT1, Volume volume_inT2,
              InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
                               get_volume_real_value(volume_inT2,i,j,k,0,0),
                               get_volume_real_value(volume_inPD,i,j,k,0,0));
-             maxvalue = -1.0;
-             maxindex = 0;             
-             for(n = 0;n < 101;n++) {
-               ScalarMultiplyVector(means[GMLABEL],((double) n)/100,mean_tmp1);
-               ScalarMultiplyVector(means[CSFLABEL],1 - ((double) n)/100,mean_tmp2);
-               AddVectors(mean_tmp1,mean_tmp2,mean_tmp1);
 
-               ScalarMultiply(vars[GMLABEL],pow(((double) n)/100,2),var_tmp1);
-               ScalarMultiply(vars[CSFLABEL],pow(1 - ((double) n)/100,2),var_tmp2);
-               AddMatrices(var_tmp1,var_tmp2,var_tmp1);
-               AddMatrices(var_tmp1,var_measurement,var_tmp1);
-               prob = Compute_Gaussian_likelihood3(value,mean_tmp1,var_tmp1);
-               if(prob > maxvalue) {
-                 maxvalue = prob;
-                 maxindex = n;
-               }
-	     }
-             
-             t = ((double) maxindex)/100; 
+             t = solve3_ml( value, means[GMLABEL], means[CSFLABEL], vars[GMLABEL], 
+                            vars[CSFLABEL], var_measurement );
+
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0, t);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,1 - t);      
@@ -1622,25 +1646,10 @@ int Compute_partial_volume_vectors3_ml(Volume volume_inT1, Volume volume_inT2,
              InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
                               get_volume_real_value(volume_inT2,i,j,k,0,0),
                               get_volume_real_value(volume_inPD,i,j,k,0,0));
-             maxvalue = -1.0;
-             maxindex = 0;             
-             for(n = 0;n < 101;n++) {
-               ScalarMultiplyVector(means[CSFLABEL],((double) n)/100,mean_tmp1);
-               ScalarMultiplyVector(means[BGLABEL],1 - ((double) n)/100,mean_tmp2);
-               AddVectors(mean_tmp1,mean_tmp2,mean_tmp1);
 
-               ScalarMultiply(vars[CSFLABEL],pow(((double) n)/100,2),var_tmp1);
-               ScalarMultiply(vars[BGLABEL],pow(1 - ((double) n)/100,2),var_tmp2);
-               AddMatrices(var_tmp1,var_tmp2,var_tmp1);
-               AddMatrices(var_tmp1,var_measurement,var_tmp1);
-               prob = Compute_Gaussian_likelihood3(value,mean_tmp1,var_tmp1);
-               if(prob > maxvalue) {
-                 maxvalue = prob;
-                 maxindex = n;
-               }
-	     }
-             
-             t = ((double) maxindex)/100;
+             t = solve3_ml( value, means[CSFLABEL], means[BGLABEL], vars[CSFLABEL], 
+                            vars[BGLABEL], var_measurement );
+
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,t); 
@@ -1650,25 +1659,10 @@ int Compute_partial_volume_vectors3_ml(Volume volume_inT1, Volume volume_inT2,
              InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
                               get_volume_real_value(volume_inT2,i,j,k,0,0),
                               get_volume_real_value(volume_inPD,i,j,k,0,0));
-             maxvalue = -1.0;
-             maxindex = 0;
-             for(n = 0;n < 101;n++) {
-               ScalarMultiplyVector(means[WMLABEL],((double) n)/100,mean_tmp1);
-               ScalarMultiplyVector(means[SCLABEL],1 - ((double) n)/100,mean_tmp2);
-               AddVectors(mean_tmp1,mean_tmp2,mean_tmp1);
 
-               ScalarMultiply(vars[WMLABEL],pow(((double) n)/100,2),var_tmp1);
-               ScalarMultiply(vars[SCLABEL],pow(1 - ((double) n)/100,2),var_tmp2);
-               AddMatrices(var_tmp1,var_tmp2,var_tmp1);
-               AddMatrices(var_tmp1,var_measurement,var_tmp1);
-               prob = Compute_Gaussian_likelihood3(value,mean_tmp1,var_tmp1);
-               if(prob > maxvalue) {
-                 maxvalue = prob;
-                 maxindex = n;
-               }
-	     }
-             
-             t = ((double) maxindex)/100;  
+             t = solve3_ml( value, means[WMLABEL], means[SCLABEL], vars[WMLABEL], 
+                            vars[SCLABEL], var_measurement );
+
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,t);
              set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,1 - t);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);  
@@ -1678,25 +1672,10 @@ int Compute_partial_volume_vectors3_ml(Volume volume_inT1, Volume volume_inT2,
              InitializeVector(value,get_volume_real_value(volume_inT1,i,j,k,0,0),
                               get_volume_real_value(volume_inT2,i,j,k,0,0),
                               get_volume_real_value(volume_inPD,i,j,k,0,0));
-             maxvalue = -1.0;
-             maxindex = 0;
-             for(n = 0;n < 101;n++) {
-               ScalarMultiplyVector(means[SCLABEL],((double) n)/100,mean_tmp1);
-               ScalarMultiplyVector(means[GMLABEL],1 - ((double) n)/100,mean_tmp2);
-               AddVectors(mean_tmp1,mean_tmp2,mean_tmp1);
 
-               ScalarMultiply(vars[SCLABEL],pow(((double) n)/100,2),var_tmp1);
-               ScalarMultiply(vars[GMLABEL],pow(1 - ((double) n)/100,2),var_tmp2);
-               AddMatrices(var_tmp1,var_tmp2,var_tmp1);
-               AddMatrices(var_tmp1,var_measurement,var_tmp1);
-               prob = Compute_Gaussian_likelihood3(value,mean_tmp1,var_tmp1);
-               if(prob > maxvalue) {
-                 maxvalue = prob;
-                 maxindex = n;
-               }
-	     }
-             
-             t = ((double) maxindex)/100;  
+             t = solve3_ml( value, means[SCLABEL], means[GMLABEL], vars[SCLABEL], 
+                            vars[GMLABEL], var_measurement );
+
              set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,t);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,1 - t);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);  

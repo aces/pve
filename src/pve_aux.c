@@ -1101,6 +1101,50 @@ int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
   return(0);
 }
 
+/* Little function to find the maximum likelihood of two classes.
+   Assume mean1 > mean2. This function is more precise than the 
+   one in the original code (at the same number of function 
+   evaluations - 100).
+ */
+
+double solve_ml( double value, double mean1, double mean2, double var1, double var2,
+                 double var_measurement ) {
+
+  int n, nn;
+
+  int maxindex = 0;
+  double maxvalue = -1.0;
+  int maxN = 50;
+
+  for(n = 0;n <= maxN;n++) {
+    double mean_tmp = (((double) n)/maxN)*mean1 + (1 - ((double) n)/maxN)*mean2;
+    double var_tmp = pow(((double) n) / maxN,2)*var1 + pow(1.0- ((double) n) / maxN,2)*var2 +
+                     var_measurement;
+    double prob = Compute_Gaussian_likelihood(value,mean_tmp,var_tmp);
+    if(prob > maxvalue) {
+      maxvalue = prob;
+      maxindex = n;
+    }
+  }
+
+  maxN *= 25;
+  maxindex = (maxindex-1)*25;
+  n = maxindex;
+  maxvalue = -1;
+  for( nn = 0; nn <= 50; nn++, n++) {
+    if( n < 0 || n > maxN ) continue;
+    double mean_tmp = (((double) n)/maxN)*mean1 + (1 - ((double) n)/maxN)*mean2;
+    double var_tmp = pow(((double) n) / maxN,2)*var1 + pow(1.0- ((double) n) / maxN,2)*var2 +
+                     var_measurement;
+    double prob = Compute_Gaussian_likelihood(value,mean_tmp,var_tmp);
+    if(prob > maxvalue) {
+      maxvalue = prob;
+      maxindex = n;
+    }
+  }
+
+  return( (double)maxindex/maxN );
+}
 
 
 /* And finally, a function that calculates the partial volume vectors based on the exact 
@@ -1114,15 +1158,10 @@ int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified
                                       double* mean, double* var, double var_measurement)
 {
   int sizes[MAX_DIMENSIONS];
-  int i,j,k,n;
+  int i,j,k;
   char c;
   double t;  /* mixing proportion to be estimated */
-  double prob;
   double value;
-  double mean_tmp,var_tmp; 
-
-  double maxvalue = - 1.0;
-  int maxindex = 0;
 
   get_volume_sizes(volume_in,sizes);
    
@@ -1164,21 +1203,8 @@ int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified
              break;
         case WMGMLABEL:
              value = get_volume_real_value(volume_in,i,j,k,0,0);
-             maxvalue = -1.0;
-             maxindex = 0;
-             for(n = 0;n < 101;n++) {
-               mean_tmp = (((double) n)/100)*mean[WMLABEL] + (1 - ((double) n)/100)*mean[GMLABEL];
-               var_tmp = pow(((double) n) / 100,2)*var[WMLABEL] + 
-                         pow(1- ((double) n) / 100,2)*var[GMLABEL] + 
-                         var_measurement;
-               prob = Compute_Gaussian_likelihood(value,mean_tmp,var_tmp);
-               if(prob > maxvalue) {
-                 maxvalue = prob;
-                 maxindex = n;
-               }
-	     }
-             
-             t = ((double) maxindex)/100;    
+             t = solve_ml( value, mean[WMLABEL], mean[GMLABEL], var[WMLABEL], var[GMLABEL],
+                           var_measurement );
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,t);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,1 - t);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0);
@@ -1186,21 +1212,8 @@ int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified
              break; 
         case GMCSFLABEL: 
              value = get_volume_real_value(volume_in,i,j,k,0,0);
-             maxvalue = -1.0;
-             maxindex = 0;
-             for(n = 0;n < 101;n++) {
-               mean_tmp = (((double) n)/100)*mean[GMLABEL] + (1 - ((double) n)/100)*mean[CSFLABEL];
-               var_tmp = pow(((double) n) / 100,2)*var[GMLABEL] + 
-                         pow(1- ((double) n) / 100,2)*var[CSFLABEL] + 
-                         var_measurement;
-               prob = Compute_Gaussian_likelihood(value,mean_tmp,var_tmp);
-               if(prob > maxvalue) {
-                 maxvalue = prob;
-                 maxindex = n;
-               }
-	     }
-             
-             t = ((double) maxindex)/100;    
+             t = solve_ml( value, mean[GMLABEL], mean[CSFLABEL], var[GMLABEL], var[CSFLABEL],
+                           var_measurement );
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0, t);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,1 - t);
@@ -1208,21 +1221,8 @@ int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified
              break; 
         case CSFBGLABEL:
              value = get_volume_real_value(volume_in,i,j,k,0,0);
-             maxvalue = -1.0;
-             maxindex = 0;
-             for(n = 0;n < 101;n++) {
-               mean_tmp = (((double) n)/100)*mean[CSFLABEL] + (1 - ((double) n)/100)*mean[BGLABEL];
-               var_tmp = pow(((double) n) / 100,2)*var[CSFLABEL] + 
-                         pow(1- ((double) n) / 100,2)*var[BGLABEL] + 
-                         var_measurement;
-               prob = Compute_Gaussian_likelihood(value,mean_tmp,var_tmp);
-               if(prob > maxvalue) {
-                 maxvalue = prob;
-                 maxindex = n;
-               }
-	     }
-             
-             t = ((double) maxindex)/100;    
+             t = solve_ml( value, mean[CSFLABEL], mean[BGLABEL], var[CSFLABEL], var[BGLABEL],
+                           var_measurement );
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,t); 
@@ -1230,21 +1230,8 @@ int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified
              break;
 	case WMSCLABEL:
              value = get_volume_real_value(volume_in,i,j,k,0,0);
-             maxvalue = -1.0;
-             maxindex = 0;
-             for(n = 0;n < 101;n++) {
-               mean_tmp = (((double) n)/100)*mean[WMLABEL] + (1 - ((double) n)/100)*mean[SCLABEL];
-               var_tmp = pow(((double) n) / 100,2)*var[WMLABEL] + 
-                         pow(1- ((double) n) / 100,2)*var[SCLABEL] + 
-                         var_measurement;
-               prob = Compute_Gaussian_likelihood(value,mean_tmp,var_tmp);
-               if(prob > maxvalue) {
-                 maxvalue = prob;
-                 maxindex = n;
-               }
-	     }
-             
-             t = ((double) maxindex)/100; 
+             t = solve_ml( value, mean[WMLABEL], mean[SCLABEL], var[WMLABEL], var[SCLABEL],
+                           var_measurement );
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,t);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0); 
@@ -1252,21 +1239,8 @@ int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified
              break;
 	case SCGMLABEL:
              value = get_volume_real_value(volume_in,i,j,k,0,0);
-             maxvalue = -1.0;
-             maxindex = 0;
-             for(n = 0;n < 101;n++) {
-               mean_tmp = (((double) n)/100)*mean[SCLABEL] + (1 - ((double) n)/100)*mean[GMLABEL];
-               var_tmp = pow(((double) n) / 100,2)*var[SCLABEL] + 
-                         pow(1- ((double) n) / 100,2)*var[GMLABEL] + 
-                         var_measurement;
-               prob = Compute_Gaussian_likelihood(value,mean_tmp,var_tmp);
-               if(prob > maxvalue) {
-                 maxvalue = prob;
-                 maxindex = n;
-               }
-	     }
-             
-             t = ((double) maxindex)/100;    
+             t = solve_ml( value, mean[SCLABEL], mean[GMLABEL], var[SCLABEL], var[GMLABEL],
+                           var_measurement );
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,1 - t);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0); 
