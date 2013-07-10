@@ -1,3 +1,8 @@
+2013-07-08  Claude Lepage      <claude@bic.mni.mcgill.ca>
+        * major speed optimizations in pve and pve3
+	* make convergence symmetric (forward/backward sweeps)
+	* resample mask like input in pve_script.in
+
 2011-07-13  Claude Lepage      <claude@bic.mni.mcgill.ca>
         * pve_script, pve, pve3: default is now -mlonly to produce
           exact maximum likelihood estimates

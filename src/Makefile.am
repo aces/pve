@@ -11,6 +11,7 @@ noinst_HEADERS = \
 	matrix3.h \
 	minvarellipsoid.h \
 	minvarellipsoid3.h \
+	pve_common.h \
 	pve3_aux.h \
 	pve_aux.h
 
@@ -27,6 +28,7 @@ EXTRA_DIST = $(m4_files) \
         matrix3.h \
         minvarellipsoid.h \
         minvarellipsoid3.h \
+        pve_common.h \
         pve3_aux.h \
         pve_aux.h \
         pve_support.h
@@ -44,6 +46,7 @@ m4_files = \
 pve_SOURCES = \
 	pve.c \
 	pve_aux.c \
+	pve_common.c \
 	least_trimmed_squares.c \
 	minvarellipsoid.c \
 	kth_smallest.c
@@ -51,6 +54,7 @@ pve_SOURCES = \
 pve3_SOURCES = \
 	pve3.c \
 	pve3_aux.c \
+	pve_common.c \
 	matrix3.c \
 	minvarellipsoid3.c \
 	kth_smallest.c

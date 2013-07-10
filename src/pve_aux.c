@@ -10,9 +10,6 @@
 #include "minvarellipsoid.h"
 #include "least_trimmed_squares.h"
 
-static double * Downsample_values( double *, long int, long int * );
-static void * AddNoise_values( double *, long int, double );
-
 /* -----------------------------------------------------
    Functions related to output. Help, errormessages , etc. 
    ----------------------------------------------------- */
@@ -46,7 +43,7 @@ printf(" Order of these is important!! \n");
 void Usage_info(char* pname) {
   
   (void) fprintf(stderr,
-		 "\nUsage: %s [<options>] -<np estimator> <estimator_file> -mask <maskfile> <infile> <outfile_prefix>\n", pname);
+                 "\nUsage: %s [<options>] -<np estimator> <estimator_file> -mask <maskfile> <infile> <outfile_prefix>\n", pname);
   (void) fprintf(stderr,"        (where -<np estimator> must be either -file, -image or -tags)\n\n");
   (void) fprintf(stderr,"       %s [-help]\n\n", pname);
   (void) fprintf(stderr,"\nCopyright Alan C. Evans\nProfessor of Neurology\nMcGill University\n");
@@ -134,6 +131,15 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volu
   get_volume_sizes( volume_seg, sizes_seg );  
   if(!((sizes[0] == sizes_seg[0]) && (sizes[1] == sizes_seg[1]) &&
       (sizes[2] == sizes_seg[2]))) return(3);
+
+  /* The default NEIGHBOURHOOD is good for 1mm voxels, but use 125
+     for 0.5mm voxels. */
+  int neighbourhood = NEIGHBOURHOOD;
+  double slice_width[MAX_DIMENSIONS];
+  get_volume_separations( volume_in, slice_width );
+  if( slice_width[0] < 0.75 && slice_width[1] < 0.75 && slice_width[2] < 0.75 ) {
+    neighbourhood = 125;
+  }
   
   /* Then start parameter estimation */ 
 
@@ -147,7 +153,7 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volu
       }
     } else {
       samples = Collect_values(volume_in,volume_mask,volume_seg,c,&nofsamples,
-                               NEIGHBOURHOOD);
+                               neighbourhood);
     }
     if(samples == NULL) return(4);
 
@@ -179,7 +185,7 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volu
 
 /* ML estimation of means and variances. Returns 0 if successful. */
 
-int Estimate_ml( double * samples, long int nofsamples, 
+int Estimate_ml( double * samples, long int nofsamples,
                  double* mean, double* var ) { 
 
   long int i;  
@@ -221,7 +227,7 @@ int Estimate_mve( double * samples, long int nofsamples,
 /* MCD estimation of the means and variances. Returns 0 if succesful. */
 
 int Estimate_mcd( double * samples, long int nofsamples,
-		 double* mean,double* var) {
+                 double* mean,double* var) {
 
   *mean = 0.0;
   *var = 0.0;
@@ -231,37 +237,6 @@ int Estimate_mcd( double * samples, long int nofsamples,
   }
 
   return(0);
-}
-
-/* Downsample the samples. */
-
-static double * Downsample_values( double * samples, long int count, long int * new_count ) {
-
-  int i;
-
-  *new_count = 0;
-  double * sample_vector = malloc(MAXSAMPLES * sizeof(double));
-  if( sample_vector == NULL ) return(NULL);
-  for(i =0;i < MAXSAMPLES;i++) {
-    int sampleno = rint(rand() *( (double) (count - 1) / RAND_MAX));
-    sample_vector[i] = samples[sampleno];
-  }
-  
-  *new_count = MAXSAMPLES;
-  return( sample_vector );
-}
-
-/* Add a bit of uniform random noise to the samples. */
-
-static void * AddNoise_values( double * samples, long int count, double voxel_value_interval ) {
-
-  int i;
-
-  for(i = 0; i < count; i++) {
-    samples[i] = samples[i] + (rand() - RAND_MAX / 2)*  
-                              voxel_value_interval/RAND_MAX;
-  } 
-
 }
 
 /* Function that collects intensity values for parameter estimation into one vector.
@@ -291,41 +266,66 @@ double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,cha
                          /DATATYPE_SIZE;
   srand(time(0)); /* Set seed */
   
-  for(i = 1; i < sizes[0] - 1;i++) {
-    for(j = 1;j < sizes[1] - 1;j++) {
-      for( k = 1; k < sizes[2] - 1;k++) {
+  for(i = 2; i < sizes[0] - 2;i++) {
+    for(j = 2;j < sizes[1] - 2;j++) {
+      for( k = 2; k < sizes[2] - 2;k++) {
         set_volume_real_value(volume_tmp,i,j,k,0,0,0);
         if(get_volume_real_value(volume_mask,i,j,k,0,0) > MASK_TR) {     /* Voxel in the brain */
           if(rint(get_volume_real_value(volume_seg,i,j,k,0,0)) == ref_label) {  /* And of right type */
-	    /* Check neigbourhood: Choices for neighbourhood are 6 and 26 neignbourhood or 
+            /* Check neigbourhood: Choices for neighbourhood are 6 and 26 neignbourhood or 
                no neighbourhood checking. 
                The choice is defined by the constant NEIGHBOURHOOD  */
             on_the_border = FALSE;
-            if(neighbourhood == 26) { /* 26 - neighbourhood */
+
+            if(neighbourhood == 125) { /* 125 - neighbourhood -- good for 0.5mm voxels */
+              for(i1 = -2;i1 <= 2;i1++) {
+                for(j1 = -2;j1 <= 2;j1++) {
+                  for(k1 = -2;k1 <= 2;k1++) {
+                    if(rint(get_volume_real_value(volume_seg,i + i1,j + j1,k + k1,0,0)) 
+                        != ref_label) {
+                      on_the_border = TRUE;
+                      break;
+                    }
+                  }
+                  if( on_the_border ) break;
+                }
+                if( on_the_border ) break;
+              }
+            } else if(neighbourhood == 26) { /* 26 - neighbourhood */
               for(i1 = -1;i1 < 2;i1++) {
                 for(j1 = -1;j1 < 2;j1++) {
                   for(k1 = -1;k1 < 2;k1++) {
                     if(rint(get_volume_real_value(volume_seg,i + i1,j + j1,k + k1,0,0)) 
-                        != ref_label)  
+                        != ref_label) {
                       on_the_border = TRUE;
-		  }
+                      break;
+                    }
+                  }
+                  if( on_the_border ) break;
                 }
-	      }
+                if( on_the_border ) break;
+              }
             } else if(neighbourhood == 6) { /* 6-neighbourhood */
               for(i1 = -1;i1 < 2;i1++) {
                 if(rint(get_volume_real_value(volume_seg,i + i1,j,k,0,0)) 
-                        != ref_label)  
+                        != ref_label) {
                   on_the_border = TRUE;
+                  break;
+                }
               }
               for(i1 = -1;i1 < 2;i1++) {
                 if(rint(get_volume_real_value(volume_seg,i,j + i1,k,0,0)) 
-                        != ref_label)  
+                        != ref_label) {
                   on_the_border = TRUE;
+                  break;
+                }
               }
               for(i1 = -1;i1 < 2;i1++) {
                 if(rint(get_volume_real_value(volume_seg,i,j,k + i1,0,0)) 
-                        != ref_label)  
+                        != ref_label) {
                   on_the_border = TRUE;
+                  break;
+                }
               }
             }
             if(!on_the_border) {
@@ -333,7 +333,7 @@ double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,cha
               set_volume_real_value(volume_tmp,i,j,k,0,0,1);
             }
           }
-	}
+        }
       }
     }
   }
@@ -343,9 +343,9 @@ double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,cha
     sample_vector = malloc(count * sizeof (double));
     if(sample_vector == NULL) return(NULL);
     sampleno = 0;
-    for(i = 1; i < sizes[0] - 1;i++) {
-      for(j = 1;j < sizes[1] - 1;j++) {
-        for( k = 1; k < sizes[2] - 1;k++) {
+    for(i = 2; i < sizes[0] - 2; i++) {
+      for(j = 2; j < sizes[1] - 2; j++) {
+        for( k = 2; k < sizes[2] - 2; k++) {
           if(get_volume_real_value(volume_tmp,i,j,k,0,0) > 0.5) {
             sample_vector[sampleno] = get_volume_real_value(volume_in,i,j,k,0,0);
             sampleno = sampleno + 1;
@@ -381,7 +381,7 @@ double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,cha
     sample_vector = NULL;
   }
   delete_volume(volume_tmp);
-  *pcount = count;    
+  *pcount = count;
   return(sample_vector);
 }
 
@@ -404,8 +404,8 @@ double* Collect_values_subcortical( Volume volume_in, Volume volume_subcort, lon
   for(i = 1; i < sizes[0] - 1;i++) {
     for(j = 1;j < sizes[1] - 1;j++) {
       for( k = 1; k < sizes[2] - 1;k++) {
-	if (get_volume_real_value(volume_subcort,i,j,k,0,0) > SC_TR )
-	  count++;
+        if (get_volume_real_value(volume_subcort,i,j,k,0,0) > SC_TR )
+          count++;
       }
     }
   }
@@ -447,7 +447,7 @@ double* Collect_values_subcortical( Volume volume_in, Volume volume_subcort, lon
     sample_vector = NULL;
   }
 
-  *pcount = count;    
+  *pcount = count;
   return(sample_vector);
 }
 
@@ -468,7 +468,7 @@ int Estimate_params_from_tags(char* tag_filename,Volume volume_in,
    get_volume_sizes( volume_in, sizes ); 
 
    if ( input_tag_file(tag_filename, &n_tag_volumes, &num_samples,
-		      &tags, NULL, NULL, NULL, NULL, &labels ) != OK ) 
+                      &tags, NULL, NULL, NULL, NULL, &labels ) != OK ) 
       return(1);
 
    for(i = 0;i < PURE_CLASSES; i++) {
@@ -497,7 +497,7 @@ int Estimate_params_from_tags(char* tag_filename,Volume volume_in,
          adj_num_samples[c - 1] = adj_num_samples[c - 1] + 1;
        }
        else {
-	 printf("\n Warning there is something curious with the labels \n");
+         printf("\n Warning: There is something curious with the labels. \n");
        }
      }
    }
@@ -536,7 +536,7 @@ int Estimate_params_from_tags(char* tag_filename,Volume volume_in,
    vars[BGLABEL] = 0.1* MIN3(vars[WMLABEL],vars[GMLABEL],vars[CSFLABEL]);
       
    free_tag_points(n_tag_volumes, num_samples,
-		  tags, NULL, NULL, NULL, NULL, labels );
+                  tags, NULL, NULL, NULL, NULL, labels );
    return(0);
 }
 
@@ -552,7 +552,7 @@ int Open_images(char* in_fn, char* mask_fn, Volume* pvolume_in,
   if(input_volume(in_fn,3,NULL,NC_UNSPECIFIED,FALSE,0.0, 0.0, 
                  TRUE, pvolume_in, (minc_input_options *) NULL) != OK)
     return(1);
-  if(input_volume(mask_fn,3,NULL,NC_UNSPECIFIED,FALSE,0.0, 0.0, 
+  if(input_volume(mask_fn,3,NULL,NC_BYTE,FALSE,0.0, 2.0, 
                  TRUE, pvolume_mask, (minc_input_options *) NULL) != OK)
     return(2);
 
@@ -569,72 +569,19 @@ int Open_images(char* in_fn, char* mask_fn, Volume* pvolume_in,
 }
 
 /* -------------------------------------------------------------------
-  Functions that do tiny tasks for other functions from this file.
-  They are not called from main
-  -------------------------------------------------------------------- */
-/* No explanation needed ... */
-
-/* Limits x to the range from 0 to 1. */ 
-
-void Limit_0_1(double* x) 
-{
-  if( *x < 0) *x = 0.0;
-  else if( *x > 1) *x = 1.0 ;
-
-}
-
-/* ---------------------------------------------------------------------------
-   And finally functions that are called from main to do the actual computations.
-  ---------------------------------------------------------------------------- */
-
-/* Normalizes n probalities to sum to one */
-
-int Normalize(double* pval, char n)
-
-{ double sca = 0.0;
-  char i;
-
-  for(i = 0;i < n;i++) {
-    sca = sca + pval[i];
-  }
-  if(fabs(sca) >  VERY_SMALL) {       /* To avoid divisions by zero */
-    for(i = 0;i < n;i++) {
-      pval[i] = pval[i]/sca;
-    }
-    return 0;
-  } else {
-    return 1;
-  }
-}
-
-
-/* Finds maximum argument out of the n possibilities */
-
-char Maxarg(double* pval,char n)
-{
-  double maximum,index;
-  char i;
-  
-  maximum = pval[0];
-  index = 1;
-  for(i = 1;i < n;i++) {
-    if(pval[i] > maximum) {
-      index = i + 1;
-      maximum = pval[i];
-    }
-  }
-  return(index);
-}
-
-
-/* -------------------------------------------------------------------
 Computes likelihood of value given parameters mean and variance. 
-Returns the likelihood.                                                */
+Returns the likelihood. No need to normalize by sqrt(2*PI).         */ 
 
-double Compute_Gaussian_likelihood(double value, double mean , double var)
+double Compute_Gaussian_likelihood(double value, double mean , double var) { 
 
-{ 
-  return(exp(-(pow((value - mean),2))/(2 * var))/(sqrt(2 * PI * var)));
+  // return(exp(-(pow((value - mean),2))/(2 * var))/(sqrt(2 * PI * var)));
+  return(exp(-(pow((value - mean),2))/(2 * var))/(sqrt(var)));
+
+}
+
+double Compute_Gaussian_log_likelihood(double value, double mean , double var) { 
+
+  return( -(pow((value - mean),2))/(2 * var) - 0.5*log(var) );
 
 }
 
@@ -682,63 +629,6 @@ double Compute_marginalized_likelihood(double value, double mean1 , double mean2
   return(lh);
 }
 
-/* Computes prior probalibility of a voxel have a certain label given the neighbourhood labels.
-   Takes classified volume and three coordinates.
-    The first argument is of course the label under investigation.
-   prior is the prior probability of the label to occur.
-   Integers same , similar and different and double beta specify the MRF.
-   No need to check for on_the_border as this is checked in the likelyhood loop.
- */
-
-void Compute_mrf_probability(double* mrf_probability, Volume* pvolume, int x, int y , int z, 
-                             double* width_stencil, double beta, double same, double similar, 
-                             double different, double prior ) {
-
-  int i,j,k,ii;
-  char label, label2;  
-  double similarity_value;
-
-  for( label = 0; label < CLASSES; label++ ) {
-    mrf_probability[label] = 0;
-  }
-
-  ii = 0; 
-  for(i = -1; i < 2; i++) {
-    for(j = -1; j < 2; j++) {
-      for(k = -1; k < 2; k++) {
-        if( i == 0 && j == 0 && k == 0 ) {
-          for( label = 0; label < CLASSES; label++ ) {
-            mrf_probability[label] += prior;
-          }
-        } else {
-          label2 = get_volume_real_value(*pvolume, x + i, y + j , z + k,0,0);
-          for( label = 0; label < CLASSES; label++ ) {
-            if(Are_same(label+1,label2)) {
-              similarity_value = same;
-            } else if(Are_similar(label+1,label2)) {
-              if (((label+1) == GMCSFLABEL)||((label+1) == CSFLABEL)) {
-                similarity_value = similar;
-              } else {
-                similarity_value = -1;
-              }
-            } else {
-              similarity_value = different;
-            }
-            mrf_probability[label] += similarity_value * width_stencil[ii];
-          }
-        }
-        ii++;
-      }
-    }
-  } 
-
-  for( label = 0; label < CLASSES; label++ ) {
-    mrf_probability[label] = exp( -beta * mrf_probability[label] );
-  }
-} 
-
-
-
 /* Function that handles the re-estimation of means and variances for pure 
    tissue classes. Currently the variance of measurement noise is estimated 
    to be a fraction - defined by MEASUREMENT_FRACTION (see the header file) -
@@ -748,7 +638,7 @@ void Compute_mrf_probability(double* mrf_probability, Volume* pvolume, int x, in
    IS ZERO. This is implemented in a way that if parameter var_measurement is zero, it 
    is treated as a constant. Also if all tissue class variances are zero, then it is 
    assumed that the model with only measurement noise component is used and tissue class 
-   variances remain zero. Also parameters related to the backgraound class are not updated.
+   variances remain zero. Also parameters related to the background class are not updated.
 */
 
 void Parameter_estimation(Volume volume_in, Volume volume_mask, 
@@ -779,7 +669,7 @@ void Parameter_estimation(Volume volume_in, Volume volume_mask,
             mean[c] = mean[c] + get_volume_real_value(probabilities[c - 1],i,j,k,0,0)
                               * get_volume_real_value(volume_in,i,j,k,0,0);
           }
-	}
+        }
       }
     }
     mean[c] = mean[c] / total_probability;
@@ -906,6 +796,17 @@ int Parameter_estimation_classified(Volume volume_in, Volume volume_mask,
   return( ( err_mean > 0.001 ) || ( err_var > 0.005 ) );
 }
 
+/* Compute mixed-class threshold. */
+
+double Compute_mixed_class_thresh( double m1, double v1, double m2, double v2 ) {
+
+  double a = v2 - v1;
+  double b = m1 * v2 - m2 * v1;
+  double c = v2 * m1 * m1 - v1 * m2 * m2 + v1 * v2 * log( v1 / v2 );
+  return( ( b + sqrt( b * b - a * c ) ) / a );
+}
+
+
 /* Compute a final classification of the pure classes based on the
    probabilistics maps (not the same as using the partial volume
    vectors).
@@ -921,13 +822,22 @@ int Compute_final_classification(Volume volume_in,Volume volume_classified,
   double val, t1, t2;
 
   get_volume_sizes(volume_in,sizes);
-   
+
+  double gmwm_thresh = Compute_mixed_class_thresh( mean[GMLABEL],var[GMLABEL],
+                                                   mean[WMLABEL],var[WMLABEL] );
+  double csfgm_thresh = Compute_mixed_class_thresh( mean[CSFLABEL],var[CSFLABEL],
+                                                    mean[GMLABEL],var[GMLABEL] );
+  double gmsc_thresh = Compute_mixed_class_thresh( mean[GMLABEL],var[GMLABEL],
+                                                   mean[SCLABEL],var[SCLABEL] );
+  double scwm_thresh = Compute_mixed_class_thresh( mean[SCLABEL],var[SCLABEL],
+                                                   mean[WMLABEL],var[WMLABEL] );
+
   for( i = 0; i < sizes[0];i++) {
     for( j = 0;j < sizes[1];j++) {
       for( k = 0; k < sizes[2]; k++) {
         c = get_volume_real_value(volume_classified,i,j,k,0,0);
-	switch(c) {
-	case BGLABEL: 
+        switch(c) {
+        case BGLABEL: 
              set_volume_real_value(final_cls,i,j,k,0,0,BGLABEL);
              break;
         case WMLABEL: 
@@ -940,14 +850,15 @@ int Compute_final_classification(Volume volume_in,Volume volume_classified,
         case CSFBGLABEL:
              set_volume_real_value(final_cls,i,j,k,0,0,CSFLABEL);
              break;
-	case SCLABEL:
+        case SCLABEL:
              set_volume_real_value(final_cls,i,j,k,0,0,SCLABEL);
-	     break;
+             break;
         case WMGMLABEL: 
              val = get_volume_real_value(volume_in,i,j,k,0,0);
-             t1 = Compute_Gaussian_likelihood(val,mean[GMLABEL],var[GMLABEL]);
-             t2 = Compute_Gaussian_likelihood(val,mean[WMLABEL],var[WMLABEL]);
-             if( t1 >= t2 ) {
+             if( val < gmwm_thresh ) {
+//           t1 = Compute_Gaussian_likelihood(val,mean[GMLABEL],var[GMLABEL]);
+//           t2 = Compute_Gaussian_likelihood(val,mean[WMLABEL],var[WMLABEL]);
+//           if( t1 >= t2 ) {
                set_volume_real_value(final_cls,i,j,k,0,0,GMLABEL);
              } else {
                set_volume_real_value(final_cls,i,j,k,0,0,WMLABEL);
@@ -955,26 +866,29 @@ int Compute_final_classification(Volume volume_in,Volume volume_classified,
              break; 
         case GMCSFLABEL: 
              val = get_volume_real_value(volume_in,i,j,k,0,0);
-             t1 = Compute_Gaussian_likelihood(val,mean[GMLABEL],var[GMLABEL]);
-             t2 = Compute_Gaussian_likelihood(val,mean[CSFLABEL],var[CSFLABEL]);
-             if( t1 >= t2 ) {
+             if( val > csfgm_thresh ) {
+//           t1 = Compute_Gaussian_likelihood(val,mean[GMLABEL],var[GMLABEL]);
+//           t2 = Compute_Gaussian_likelihood(val,mean[CSFLABEL],var[CSFLABEL]);
+//           if( t1 >= t2 ) {
                set_volume_real_value(final_cls,i,j,k,0,0,GMLABEL);
              } else {
                set_volume_real_value(final_cls,i,j,k,0,0,CSFLABEL);
              }
              break;
-	case WMSCLABEL:
+        case WMSCLABEL:
              val = get_volume_real_value(volume_in,i,j,k,0,0);
-             t1 = Compute_Gaussian_likelihood(val,mean[WMLABEL],var[WMLABEL]);
-             t2 = Compute_Gaussian_likelihood(val,mean[SCLABEL],var[SCLABEL]);
-             if( t1 >= t2 ) {
+             if( val > scwm_thresh ) {
+//           t1 = Compute_Gaussian_likelihood(val,mean[WMLABEL],var[WMLABEL]);
+//           t2 = Compute_Gaussian_likelihood(val,mean[SCLABEL],var[SCLABEL]);
+//           if( t1 >= t2 ) {
                set_volume_real_value(final_cls,i,j,k,0,0,WMLABEL);
              } else {
                set_volume_real_value(final_cls,i,j,k,0,0,SCLABEL);
              }
              break;
-	case SCGMLABEL:
+        case SCGMLABEL:
              val = get_volume_real_value(volume_in,i,j,k,0,0);
+             // leave like this because not sure if GM < SC or GM > SC.
              t1 = Compute_Gaussian_likelihood(val,mean[GMLABEL],var[GMLABEL]);
              t2 = Compute_Gaussian_likelihood(val,mean[SCLABEL],var[SCLABEL]);
              if( t1 >= t2 ) {
@@ -982,7 +896,7 @@ int Compute_final_classification(Volume volume_in,Volume volume_classified,
              } else {
                set_volume_real_value(final_cls,i,j,k,0,0,SCLABEL);
              }
-             break;	    
+             break;            
         default: return(1); break;
         }
       }
@@ -1017,38 +931,38 @@ int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
     for( j = 0;j < sizes[1];j++) {
       for( k = 0; k < sizes[2]; k++) {
         c = get_volume_real_value(volume_classified,i,j,k,0,0);
-	switch(c) {
-	case BGLABEL: 
+        switch(c) {
+        case BGLABEL:
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
-        case WMLABEL: 
+        case WMLABEL:
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,1.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
-        case GMLABEL: 
+        case GMLABEL:
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,1.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
-             break;                
-        case CSFLABEL: 
-	     set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
+             break;
+        case CSFLABEL:
+             set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,1.0);
              set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
-	case SCLABEL:
-	     set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
+        case SCLABEL:
+             set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,1.0);
-	     break;
-        case WMGMLABEL: 
+             break;
+        case WMGMLABEL:
              t = (get_volume_real_value(volume_in,i,j,k,0,0) - mean[GMLABEL]) / 
                                        (mean[WMLABEL] - mean[GMLABEL]);
              Limit_0_1(&t);
@@ -1056,8 +970,8 @@ int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,1 - t);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
-             break; 
-        case GMCSFLABEL: 
+             break;
+        case GMCSFLABEL:
              t = (get_volume_real_value(volume_in,i,j,k,0,0) - mean[CSFLABEL]) 
                                      / (mean[GMLABEL] - mean[CSFLABEL]);
              Limit_0_1(&t);
@@ -1065,34 +979,34 @@ int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0, t);
              set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,1 - t);
              set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
-             break; 
+             break;
         case CSFBGLABEL:
              t = (get_volume_real_value(volume_in,i,j,k,0,0) - mean[BGLABEL]) / 
                                        (mean[CSFLABEL] - mean[BGLABEL]);
              Limit_0_1(&t);
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
-             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,t); 
+             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,t);
              set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
-	case WMSCLABEL:
-	     t = (get_volume_real_value(volume_in,i,j,k,0,0) - mean[SCLABEL]) / 
+        case WMSCLABEL:
+             t = (get_volume_real_value(volume_in,i,j,k,0,0) - mean[SCLABEL]) / 
                                        (mean[WMLABEL] - mean[SCLABEL]);
-	     Limit_0_1(&t);
-	     set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,t);
+             Limit_0_1(&t);
+             set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,t);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,0.0);
-             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0); 
-             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,1 - t);	    
+             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,1 - t);
              break;
-	case SCGMLABEL:
-	     t = (get_volume_real_value(volume_in,i,j,k,0,0) - mean[GMLABEL]) / 
+        case SCGMLABEL:
+             t = (get_volume_real_value(volume_in,i,j,k,0,0) - mean[GMLABEL]) / 
                                        (mean[SCLABEL] - mean[GMLABEL]);
-	     Limit_0_1(&t);
+             Limit_0_1(&t);
              set_volume_real_value(volume_pve[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve[GMLABEL - 1],i,j,k,0,0,1 - t);
-             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0); 
-             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,t);	    
-             break;	    
+             set_volume_real_value(volume_pve[CSFLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve[SCLABEL - 1],i,j,k,0,0,t);
+             break;
         default: return(1); break;
         }
       }
@@ -1102,50 +1016,42 @@ int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
 }
 
 /* Little function to find the maximum likelihood of two classes.
-   Assume mean1 > mean2. This function is more precise than the 
-   one in the original code (at the same number of function 
-   evaluations - 100).
+   Assume mean1 > mean2. This function has been optimized for speed
+   and uses only 30 function evaluations.
  */
 
 double solve_ml( double value, double mean1, double mean2, double var1, double var2,
                  double var_measurement ) {
 
-  int n, nn;
+  int n, iter;
+  int maxN = 10;
+  double dt = 10.0;
+  double maxt = 0.50;
 
-  int maxindex = 0;
-  double maxvalue = -1.0;
-  int maxN = 50;
+  for( iter = 0; iter < 5; iter++ ) {
 
-  for(n = 0;n <= maxN;n++) {
-    double mean_tmp = (((double) n)/maxN)*mean1 + (1 - ((double) n)/maxN)*mean2;
-    double var_tmp = pow(((double) n) / maxN,2)*var1 + pow(1.0- ((double) n) / maxN,2)*var2 +
-                     var_measurement;
-    double prob = Compute_Gaussian_likelihood(value,mean_tmp,var_tmp);
-    if(prob > maxvalue) {
-      maxvalue = prob;
-      maxindex = n;
+    double tstart = max( maxt - dt, 0.0 );
+    double tend = min( maxt + dt, 1.0 );
+    dt = ( tend - tstart ) / (double)maxN;
+    maxt = -100.0;
+    double maxvalue = -1.0;
+
+    double t = tstart;
+    for(n = 0;n <= maxN;n++) {
+      double mean_tmp = t*mean1 + (1-t)*mean2;
+      double var_tmp = t*t*var1 + (1.0-t)*(1.0-t)*var2 + var_measurement;
+      double prob = Compute_Gaussian_log_likelihood(value,mean_tmp,var_tmp);
+      if(maxt < -1 || prob > maxvalue) {
+        maxvalue = prob;
+        maxt = t;
+      }
+      t += dt;
     }
+    maxN -= 2;
   }
 
-  maxN *= 25;
-  maxindex = (maxindex-1)*25;
-  n = maxindex;
-  maxvalue = -1;
-  for( nn = 0; nn <= 50; nn++, n++) {
-    if( n < 0 || n > maxN ) continue;
-    double mean_tmp = (((double) n)/maxN)*mean1 + (1 - ((double) n)/maxN)*mean2;
-    double var_tmp = pow(((double) n) / maxN,2)*var1 + pow(1.0- ((double) n) / maxN,2)*var2 +
-                     var_measurement;
-    double prob = Compute_Gaussian_likelihood(value,mean_tmp,var_tmp);
-    if(prob > maxvalue) {
-      maxvalue = prob;
-      maxindex = n;
-    }
-  }
-
-  return( (double)maxindex/maxN );
+  return( maxt );
 }
-
 
 /* And finally, a function that calculates the partial volume vectors based on the exact 
    Maximum likelihood criterion. Uses grid search, but should not be too time taking. 
@@ -1170,8 +1076,8 @@ int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified
     for( j = 0;j < sizes[1];j++) {
       for( k = 0; k < sizes[2]; k++) {       
         c = get_volume_real_value(volume_classified,i,j,k,0,0);
-	switch(c) {
-	case BGLABEL: 
+        switch(c) {
+        case BGLABEL: 
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0);
@@ -1187,7 +1093,7 @@ int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,1.0);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0);
-	     set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,0.0);
+             set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
         case CSFLABEL:
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
@@ -1195,7 +1101,7 @@ int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,1.0);
              set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
-	case SCLABEL:
+        case SCLABEL:
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0);
@@ -1228,23 +1134,23 @@ int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,t); 
              set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,0.0);
              break;
-	case WMSCLABEL:
+        case WMSCLABEL:
              value = get_volume_real_value(volume_in,i,j,k,0,0);
              t = solve_ml( value, mean[WMLABEL], mean[SCLABEL], var[WMLABEL], var[SCLABEL],
                            var_measurement );
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,t);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0); 
-             set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,1 - t);	    
+             set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,1 - t);            
              break;
-	case SCGMLABEL:
+        case SCGMLABEL:
              value = get_volume_real_value(volume_in,i,j,k,0,0);
              t = solve_ml( value, mean[SCLABEL], mean[GMLABEL], var[SCLABEL], var[GMLABEL],
                            var_measurement );
              set_volume_real_value(volume_pve_ml[WMLABEL - 1],i,j,k,0,0,0.0);
              set_volume_real_value(volume_pve_ml[GMLABEL - 1],i,j,k,0,0,1 - t);
              set_volume_real_value(volume_pve_ml[CSFLABEL - 1],i,j,k,0,0,0.0); 
-             set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,t);	    
+             set_volume_real_value(volume_pve_ml[SCLABEL - 1],i,j,k,0,0,t);            
              break;
         default: return(1); break;
         }

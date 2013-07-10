@@ -94,33 +94,36 @@ else {
   die "$usage";
 }
 
+# These are temporary files.
+MNI::FileUtilities::check_output_path("${TmpDir}") or exit 1;
+
 if (!defined($vol_mask) || !defined($vol_classified)) {
   die "$usage";
 }
+my $vol_mask_rsl = "${TmpDir}/pve_vol_mask_rsl.mnc";
+Spawn(['mincresample', '-clobber', '-quiet', '-unsigned', '-byte',
+       '-like', $vol_classified, '-nearest', $vol_mask, $vol_mask_rsl]);
 
 my $outpref = pop @ARGV;
 my @invols = @ARGV;
-my @outfiles = ("${outpref}_disc.mnc","${outpref}_wm.mnc","${outpref}_gm.mnc","${outpref}_csf.mnc");
+my @outfiles = ("${outpref}_disc.mnc","${outpref}_exactwm.mnc", "${outpref}_exactgm.mnc","${outpref}_exactcsf.mnc");
 
 if (defined($vol_curvature)) {
   push @pve_ops,"-curve";
   push @pve_ops,$vol_curvature;
 }
 
-
 if ($use_subcort) {
   my $sc_volume_tmp = $sc_volume;
   # Apply non-linear transformation to sub-cortical mask to map it to subject.
   if( defined($t1_tal_nl_xfm) ) {
-    # These are temporary files.
-    MNI::FileUtilities::check_output_path("${TmpDir}") or exit 1;
     $sc_volume_tmp = "${TmpDir}/sc_volume_resampled.mnc";
     Spawn(['mincresample', "-like", $vol_classified, "-nearest_neighbour",
            "-transform", $t1_tal_nl_xfm, "-invert", $sc_volume, $sc_volume_tmp]);
   }
   push @pve_ops,"-subcortical";
   push @pve_ops,$sc_volume_tmp;
-  push @outfiles,"${outpref}_sc.mnc";
+  push @outfiles,"${outpref}_exactsc.mnc";
 }
 
 if ($iterate) {
@@ -132,7 +135,8 @@ if ($clobber) {
 }
 
 
-Spawn([$pve,@invols,$outpref,"-mask",$vol_mask,"-image",$vol_classified,@pve_ops]);
+Spawn([$pve,@invols,$outpref,"-mlonly","-mask",$vol_mask_rsl,"-image",$vol_classified,@pve_ops]);
+unlink( $vol_mask_rsl );
 
 if ($zip_files) {
 
