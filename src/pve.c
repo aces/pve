@@ -309,8 +309,9 @@ int main(int argc, char** argv)
   for( c = 0;c < CLASSES;c++) {
     // Use NC_BYTE instead of NC_UNSPECIFIED to save memory (a lot!) and
     // get nearly identical convergence.
-    volume_likelihood[c] = copy_volume_definition(volume_in, NC_UNSPECIFIED, 
+    // volume_likelihood[c] = copy_volume_definition(volume_in, NC_UNSPECIFIED, 
     //volume_likelihood[c] = copy_volume_definition(volume_in, NC_BYTE, 
+    volume_likelihood[c] = copy_volume_definition(volume_in, NC_SHORT, 
                                                   FALSE, 0.0 , 0.0);
 
     if( !volume_likelihood[c] || !volume_is_alloced( volume_likelihood[c] ) ) {
@@ -329,7 +330,8 @@ int main(int argc, char** argv)
     use_steady_state = FALSE;
   else
     num_iterations = MAX_ITERATIONS;
-  int pve_symmetric = getenv( "PVE_SYMMETRIC" ) ? 1 : 0;
+  // int pve_symmetric = getenv( "PVE_SYMMETRIC" ) ? 1 : 0;
+  int pve_symmetric = 1;
 
   get_volume_separations( volume_in, slice_width );  /* Get slice separations in each direction */ 
   value = MIN3(slice_width[0],slice_width[1],slice_width[2]);/* And normalize them so that the   */ 

@@ -1,4 +1,14 @@
-New in release 1.4.0:
+New in release 1.4.1:
+        * fix bugs in geo_smooth.cc: put () around division by voxel
+          size and division by zero magnitude of gradient; enforce
+          stability condition on dt
+        * clean-up pve_curvature for arbitrary voxel size
+        * conveniently call pve_curvature from within pve_script
+        * enforce symmetric convergence as the default
+        * use unsigned short for likelihood volumes to prevent memory
+          crash when the t1 image is in float or double.
+
+n release 1.4.0:
         * major speed optimizations in pve and pve3
         * make convergence symmetric (forward/backward sweeps)
 	* resample mask like input in pve_script.in

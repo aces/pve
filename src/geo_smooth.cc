@@ -39,22 +39,22 @@ void smooth_volume( Real dt, Volume volume, Volume output )
 
 		// The D's are spatial image derivatives
 
-		Real Dx = (I(i+1,j,k) - I(i-1,j,k)) / 2.*dx;
-		Real Dy = (I(i,j+1,k) - I(i,j-1,k)) / 2.*dy;
-		Real Dz = (I(i,j,k+1) - I(i,j,k-1)) / 2.*dz;
+		Real Dx = (I(i+1,j,k) - I(i-1,j,k)) / (2.*dx);
+		Real Dy = (I(i,j+1,k) - I(i,j-1,k)) / (2.*dy);
+		Real Dz = (I(i,j,k+1) - I(i,j,k-1)) / (2.*dz);
 		
-		Real Dxx = (I(i+1,j,k) - 2.*I(i,j,k) + I(i-1,j,k)) / dx*dx;
-		Real Dyy = (I(i,j+1,k) - 2.*I(i,j,k) + I(i,j-1,k)) / dy*dy;
-		Real Dzz = (I(i,j,k+1) - 2.*I(i,j,k) + I(i,j,k-1)) / dz*dz;
+		Real Dxx = (I(i+1,j,k) - 2.*I(i,j,k) + I(i-1,j,k)) / (dx*dx);
+		Real Dyy = (I(i,j+1,k) - 2.*I(i,j,k) + I(i,j-1,k)) / (dy*dy);
+		Real Dzz = (I(i,j,k+1) - 2.*I(i,j,k) + I(i,j,k-1)) / (dz*dz);
 
 		Real Dxy = ( + I(i+1,j+1,k) - I(i+1,j-1,k)
-			     - I(i-1,j+1,k) + I(i-1,j-1,k) ) / 4.*dx*dy;
+			     - I(i-1,j+1,k) + I(i-1,j-1,k) ) / (4.*dx*dy);
 		
 		Real Dxz = ( + I(i+1,j,k+1) - I(i+1,j,k-1)
-			     - I(i-1,j,k+1) + I(i-1,j,k-1) ) / 4.*dx*dz;
+			     - I(i-1,j,k+1) + I(i-1,j,k-1) ) / (4.*dx*dz);
 		
 		Real Dyz = ( + I(i,j+1,k+1) - I(i,j-1,k+1)
-			     - I(i,j+1,k-1) + I(i,j-1,k-1) ) / 4.*dy*dz;
+			     - I(i,j+1,k-1) + I(i,j-1,k-1) ) / (4.*dy*dz);
 
 		Real curvature_num
 		    = Dxx*(Dy*Dy + Dz*Dz)
@@ -66,7 +66,7 @@ void smooth_volume( Real dt, Volume volume, Volume output )
 		// gradient magnitude, cubed.  Since we ultimately multiply
 		// curvature by the gradient magnitude, we compute here the
 		// resulting denominator: squared gradient magnitude.
-		Real den = Dx*Dx + Dy*Dy + Dz*Dz;
+		Real den = Dx*Dx + Dy*Dy + Dz*Dz + 1.0e-10;
 
 		set_volume_real_value( output, i, j, k, 0, 0,
 				       I(i,j,k) + dt * curvature_num / den );
@@ -87,8 +87,6 @@ int process_file( char* history,
 	   << out_prefix << "_*.mnc" << endl;
     }
 
-    cout << N << " time steps of size " << dt << endl;
-    
     if ( input_volume( in_name, 3, NULL, 
 		       MI_ORIGINAL_TYPE, 0, 0, 0,
 		       TRUE, &in_volume, NULL ) != OK ) {
@@ -99,6 +97,25 @@ int process_file( char* history,
 	cerr << "Error: volume in " << in_name 
 	     << " does not have three dimensions." << endl;
 	return 1;
+    }
+
+    cout << N << " time steps of size " << dt << endl;
+    
+    Real separations[MAX_DIMENSIONS];
+    get_volume_separations( in_volume, separations );
+    Real dx = separations[0];
+    Real dy = separations[1];
+    Real dz = separations[2];
+
+    // Check stability condition for explicit discretization.
+
+    Real dt_max = 0.5 / ( 1.0 / ( dx * dx ) + 1.0 / ( dy * dy ) + 1.0 / ( dz * dz ) );
+    if( dt >= dt_max ) {
+      cout << "Time step of " << dt << " violates stability condition." << endl;
+      Real tfinal = dt * N;
+      N = ceil ( dt * N / dt_max );
+      dt = tfinal / N;
+      cout << "Adjusting to " << N << " steps of " << dt << " for stability." << endl;
     }
 
     Volume out_volume 

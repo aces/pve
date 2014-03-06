@@ -339,14 +339,20 @@ int main(int argc, char** argv)
   /* Initialize required volumes and set their ranges for 
      getting rid of unnecessary surprises. */
   for( c = 0;c < CLASSES;c++) {
-    volume_likelihood[c] = copy_volume_definition(volume_inT1, NC_UNSPECIFIED, 
-          FALSE, 0.0 , 0.0);  
+
+    // Use NC_BYTE instead of NC_UNSPECIFIED to save memory (a lot!) and
+    // get nearly identical convergence.
+    // volume_likelihood[c] = copy_volume_definition(volume_inT1, NC_UNSPECIFIED,
+    //volume_likelihood[c] = copy_volume_definition(volume_inT1, NC_BYTE,
+
+    volume_likelihood[c] = copy_volume_definition(volume_inT1, NC_SHORT,
+                                                  FALSE, 0.0 , 0.0);  
     if( !volume_likelihood[c] || !volume_is_alloced( volume_likelihood[c] ) ) {
       fprintf(stderr,"Error: not enough memory to store volume likelihoods[%d].\n\n", c );
       exit(EXIT_FAILURE);
     }
     set_volume_real_range( volume_likelihood[c],
-                         LIKELIHOOD_RANGE_MIN , LIKELIHOOD_RANGE_MAX );
+                           LIKELIHOOD_RANGE_MIN , LIKELIHOOD_RANGE_MAX );
   }
 
   /* Calculate the likelihoods */
@@ -357,7 +363,8 @@ int main(int argc, char** argv)
     use_steady_state = FALSE;
   else
     num_iterations = MAX_ITERATIONS;
-  int pve_symmetric = getenv( "PVE_SYMMETRIC" ) ? 1 : 0;
+  // int pve_symmetric = getenv( "PVE_SYMMETRIC" ) ? 1 : 0;
+  int pve_symmetric = 1;
 
   get_volume_separations( volume_inT1 , slice_width );  /* Get slice separations in each direction */ 
   value = MIN3(slice_width[0],slice_width[1],slice_width[2]);/* And normalize them so that the   */ 

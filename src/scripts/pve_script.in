@@ -82,7 +82,7 @@ my @options = (["-mask", "string", 1, \$vol_mask,
 
 GetOptions( \@options, \@ARGV ) || exit 1;
 
-RegisterPrograms(['pve','pve3','mincresample','gzip']);
+RegisterPrograms(['pve_curvature','pve','pve3','mincresample','gzip']);
 
 if ( @ARGV == 2 ){
   $pve = "pve";
@@ -109,6 +109,12 @@ my @invols = @ARGV;
 my @outfiles = ("${outpref}_disc.mnc","${outpref}_exactwm.mnc", "${outpref}_exactgm.mnc","${outpref}_exactcsf.mnc");
 
 if (defined($vol_curvature)) {
+  if( $vol_curvature eq "auto" ) {
+    $vol_curvature = "${TmpDir}/pve_curvature_tmp";
+    Spawn(['pve_curvature', '-clobber', $invols[0], $vol_classified,
+           $vol_mask_rsl, $vol_curvature]);
+    $vol_curvature = "${TmpDir}/pve_curvature_tmp_cg.mnc";
+  }
   push @pve_ops,"-curve";
   push @pve_ops,$vol_curvature;
 }
@@ -134,8 +140,8 @@ if ($clobber) {
   push @pve_ops,"-clobber";
 }
 
-
-Spawn([$pve,@invols,$outpref,"-mlonly","-mask",$vol_mask_rsl,"-image",$vol_classified,@pve_ops]);
+Spawn([$pve,@invols,$outpref,"-mlonly","-mask",$vol_mask_rsl,
+       "-image",$vol_classified,@pve_ops]);
 unlink( $vol_mask_rsl );
 
 if ($zip_files) {
