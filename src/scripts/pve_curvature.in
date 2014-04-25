@@ -146,7 +146,10 @@ unlink( $smooth );
 # create the curvature volume after blurring the input image
 &run( "mincblur", '-quiet', '-no_apodize', "-fwhm", 4, $spect, $blurpref );
 &run( "make_curvature_volume", $blur, $curvepref );
-&run( "minccalc", '-quiet', "-expression", 'if (A[0] < 0) A[0] else 0',
+# Note: k1 and k2 from make_curvature_volume need to be scaled by 1/voxel_size
+#       to define a non-dimensional threshold.
+my $curve_thresh = -1.0;
+&run( "minccalc", '-quiet', "-expression", "if(A[0]/$dx<$curve_thresh){A[0]}else{0}",
       $curve, $curvelt0 );
 unlink( $blur );
 
