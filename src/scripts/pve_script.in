@@ -52,6 +52,7 @@ my $vol_mask = undef;
 my $use_subcort = 1;
 my $t1_tal_nl_xfm = undef;
 my $iterate = 0;
+my $classify = 0;
 my $zip_files = 0;
 my $clobber = 0;
 
@@ -74,6 +75,8 @@ my @options = (["-mask", "string", 1, \$vol_mask,
 		"non-linear transformation to map the subcortical tissue mask from stereotaxic space to subject","<t1_tal_nl.xfm>"],
 	       ['-iterate','boolean', 1, \$iterate,
 		'iteratively correct the mean and variance of tissue types'],
+	       ['-classify','boolean', 1, \$classify,
+                'Provide a final classified image based on probabilistic maps (BG,CSF,GM,WM,SC)'],
 	       ['-zip|-nozip','boolean',1, \$zip_files,
 		'gzip the outputted files [default: -nozip]'],
 	       ['-clobber|-noclobber','boolean',1,\$clobber,
@@ -134,6 +137,10 @@ if ($use_subcort) {
 
 if ($iterate) {
   push @pve_ops,"-est_params";
+}
+
+if ($classify) {
+  push @pve_ops,"-classify";
 }
 
 if ($clobber) {
