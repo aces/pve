@@ -1,3 +1,8 @@
+New in release 1.4.2:
+	* more extensions for processing at arbitrary voxel size (0.5mm, 1.0mm)
+	* changes to MCD and MVE calculation of the variance for CSF class to
+          avoid background values (not done for pve3)
+
 New in release 1.4.1:
         * fix bugs in geo_smooth.cc: put () around division by voxel
           size and division by zero magnitude of gradient; enforce

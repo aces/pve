@@ -9,8 +9,9 @@
 #include <stdio.h>
 #include <math.h>
 
-/* Minimum variance ellipsoid estimator for the mean and variance.
+/* Minimum volume ellipsoid estimator for the mean and variance.
    Jussi Tohka jussi.tohka@cs.tut.fi April 12th 2002
+   Butchered by Claude Lepage for one-sided approximations. July 2014.
 
 Input   : data is a vector containing n samples. Trials is the number 
           of trials that the algorithm uses, more trials more exact 
@@ -24,49 +25,66 @@ John Wiley & Sons 1987.
 
 */
 
-int minvarellipsoid(elem_type data[], long int n, int trials, 
-                     elem_type* mean , elem_type* variance)
-{
-  int i,j,random_index[2];
-  double score,best_score,sample_mean,sample_var,median_scale;
-  double best_median_scale;
-  elem_type* scaled_data;
+int minvarellipsoid(elem_type data[], long int n, int trials, int stencil,
+                    elem_type* mean , elem_type* variance) {
 
- 
-  scaled_data = malloc(n * sizeof(elem_type));
-  if(scaled_data == NULL) return(1);   
-  srand(time(0));
+  long int i, j;
+  double sample_mean, median_scale1, median_scale2;
+  double best_median_scale1, best_median_scale2;
 
-  best_score = VERY_LARGE;
+  elem_type min_value = data[0];
+  elem_type max_value = data[0];
+  for( i = 1; i < n; i++ ) {
+    if( data[i] < min_value ) min_value = data[i];
+    if( data[i] > max_value ) max_value = data[i];
+  }
+  elem_type delta = ( max_value - min_value ) / (double)trials;
+
+  best_median_scale1 = VERY_LARGE;
+  best_median_scale2 = VERY_LARGE;
   for(i = 0;i < trials;i++) {
-    random_index[0] = rint(rand()*((double) (n - 1) /RAND_MAX));
-    random_index[1] = rint(rand()*((double) (n - 1) /RAND_MAX));
-    
-    sample_mean = 0.5*(data[random_index[0]] + data[random_index[1]]);
-    sample_var = pow(data[random_index[0]] - sample_mean,2) +
-               pow(data[random_index[1]] - sample_mean,2);
-  
-    if(fabs(sample_var) > 1E-16) {
-      for(j = 0; j < n;j++) {   
-        scaled_data[j] = (data[j] - sample_mean)*(1 / sample_var) *
-                        (data[j] - sample_mean);
-      }
-      median_scale = median(scaled_data, n);     
-      score = sqrt(median_scale*sample_var);
-    }
-    else {
-      score = VERY_LARGE;
-    }
-    if(score < best_score) {
-      *mean = sample_mean;
-      *variance = sample_var;
-      best_median_scale = median_scale;
-      best_score = score;
+   
+    sample_mean = min_value + (double)i * delta;
 
+    median_scale1 = 0.0;
+    median_scale2 = 0.0;
+    if( stencil == EST_CENTERED ) {
+      for(j = 0; j < n;j++) {   
+        median_scale1 += (data[j] - sample_mean) * (data[j] - sample_mean);
+      }
+      median_scale1 = sqrt( median_scale1 / n );
+    } else {
+      int long count1 = 0, count2 = 0;
+      for(j = 0; j < n; j++) {   
+        if( data[j] <= sample_mean ) {
+          median_scale1 += (data[j] - sample_mean) * (data[j] - sample_mean);
+          count1++;
+        }
+        if( data[j] >= sample_mean ) {
+          median_scale2 += (data[j] - sample_mean) * (data[j] - sample_mean);
+          count2++;
+        }
+      }
+      if( count1 > 0 ) median_scale1 = sqrt( median_scale1 / (double)count1 );
+      if( count2 > 0 ) median_scale2 = sqrt( median_scale2 / (double)count2 );
+    }
+
+    if(median_scale1+median_scale2 < best_median_scale1+best_median_scale2) {
+      *mean = sample_mean;
+      best_median_scale1 = median_scale1;
+      best_median_scale2 = median_scale2;
     }
   }
-  *variance = best_median_scale*(*variance)*(1/CHI2INV_1);
-  free(scaled_data);      
+
+  if( stencil == EST_CENTERED ) {
+    *variance = best_median_scale1;
+  } else if( stencil == EST_BELOW ) {
+    *variance = best_median_scale1;
+  } else if( stencil == EST_ABOVE ) {
+    *variance = best_median_scale2;
+  }
+  *variance = (*variance)*(*variance);
+
   return(0);
 }
 

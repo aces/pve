@@ -139,17 +139,22 @@ unlink( $dxyz );
 # remove some noisy voxels from the grad image, and convert to a value
 # useful to the pve.
 &run( "minccalc", '-quiet', "-expression", 
-      'if(A[1]<0.5){ if (A[0] > 1){0}else{3*(A[0]-1);}} else 0',
+      'if(A[1]<0.5){if(A[0]>1){0}else{A[0]-1;}} else 0',
       $smooth, $white, $smoothlt0m3 );
 unlink( $smooth );
 
 # create the curvature volume after blurring the input image
 &run( "mincblur", '-quiet', '-no_apodize', "-fwhm", 4, $spect, $blurpref );
 &run( "make_curvature_volume", $blur, $curvepref );
-# Note: k1 and k2 from make_curvature_volume need to be scaled by 1/voxel_size
+# Note1: k1 and k2 from make_curvature_volume need to be scaled by 1/voxel_size
 #       to define a non-dimensional threshold.
-my $curve_thresh = -1.0;
-&run( "minccalc", '-quiet', "-expression", "if(A[0]/$dx<$curve_thresh){A[0]}else{0}",
+# Note2: -0.1 is a small threshold. The scaling in make_curvature_volume is a 
+#        bit cryptic. k1 and k2 don't appear to be non-dimensional, but they
+#        don't vary much with intensity and voxel size. So use -0.1 for now. CL.
+
+## my $curve_thresh = -$dx;
+my $curve_thresh = -0.1;
+&run( "minccalc", '-quiet', "-expression", "if(A[0]<$curve_thresh){A[0]}else{0}",
       $curve, $curvelt0 );
 unlink( $blur );
 
@@ -160,7 +165,7 @@ my $ndil = 1 + ceil( 1.0 / $dx );  # assume dx=dy=dz
 
 # create the combination grad+curve volume used for pve and mask out non GM/CSF
 &run( "minccalc",'-quiet', @clobber_opt, "-expression", 
-      'if(A[2]<0.5){A[0]+0.5*A[1]}else{0}',
+      'if(A[2]<0.5){2.0*A[0]+5.0*A[1]}else{0}',
       $curvelt0, $smoothlt0m3, $white, $output );
 
 unlink( $curvelt0 );

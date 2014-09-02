@@ -1,3 +1,8 @@
+2014-09-01  Claude Lepage      <claude@bic.mni.mcgill.ca>
+        * more extensions for processing at arbitrary voxel size (0.5mm, 1.0mm)
+        * changes to MCD and MVE calculation of the variance for CSF class to
+          avoid background values (not done for pve3)
+
 2014-03-04  Claude Lepage      <claude@bic.mni.mcgill.ca>
         * fix bugs in geo_smooth.cc: put () around division by voxel
           size and division by zero magnitude of gradient; enforce

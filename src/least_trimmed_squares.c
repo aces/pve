@@ -11,6 +11,7 @@
 
 /* Least trimmed squares estimates for univariate location and variance.
    Jussi Tohka jussi.tohka@cs.tut.fi April 29th 2002
+   Butchered by Claude Lepage for one-sided approximations. July 2014.
 
 Input   : data is a vector containing n samples. Data samples are 
           expected to be truly real valued (i.e too many samples having
@@ -22,8 +23,8 @@ John Wiley & Sons 1987.
 
 */
 
-int least_trimmed_squares(elem_type data[], long int n, 
-                     elem_type* mean , elem_type* variance)
+int least_trimmed_squares(elem_type data[], long int n, int stencil,
+                          elem_type* mean , elem_type* variance)
 {
   int i,j,h,h2;
   double score,best_score,loc,best_loc,old_sum,new_sum,medd;
@@ -34,7 +35,6 @@ int least_trimmed_squares(elem_type data[], long int n,
   h2 = n/2;
 
   qsort(data, n, sizeof(elem_type),compare_reals); 
-
   
   old_sum = 0;
   old_power_sum = 0.0;
@@ -56,7 +56,7 @@ int least_trimmed_squares(elem_type data[], long int n,
 
   best_score = score;
   best_loc = loc;
-  
+
   for(j = 1;j < h2 + 1;j++) {
     new_sum = old_sum - data[j - 1] + data[h - 1 + j];
     old_sum = new_sum;
@@ -78,12 +78,32 @@ int least_trimmed_squares(elem_type data[], long int n,
 
   scaled_data = malloc(n*sizeof(elem_type));
   if(scaled_data == NULL) return(1);
-  for(i = 0; i < n ;i++) {
-    scaled_data[i] = (data[i] - best_loc)*((h - 1)/best_score)*(data[i] - best_loc);
+  long int count = 0;
+  if( stencil & EST_CENTERED ) {
+    for(i = 0; i < n ;i++) {
+      scaled_data[i] = (data[i] - best_loc)*(data[i] - best_loc);
+    }
+    count = n;
+  } else if( stencil & EST_ABOVE ) {
+    for(i = 0; i < n ;i++) {
+      if( data[i] >= best_loc ) {
+        scaled_data[count] = (data[i] - best_loc)*(data[i] - best_loc);
+        count++;
+      }
+    }
+  } else if( stencil & EST_BELOW ) {
+    for(i = 0; i < n ;i++) {
+      if( data[i] <= best_loc ) {
+        scaled_data[count] = (data[i] - best_loc)*(data[i] - best_loc);
+        count++;
+      }
+    }
   }
-  medd = median(scaled_data,n);
+
+  medd = median(scaled_data,count);
   free(scaled_data);
-  *variance = (best_score/(h - 1))*(medd/CHI2INV_1);
+  *variance = medd / CHI2INV_1;
+
   return(0);
 }
 

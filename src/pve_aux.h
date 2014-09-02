@@ -9,7 +9,9 @@
 
 #include "pve_common.h"
 
-#define ESTIMATOR "MCD"   /* MVE, MCD and ML supported */
+// #define ESTIMATOR "MCD"   /* MVE, MCD and ML supported */
+#define ESTIMATOR "MVE"   /* MVE, MCD and ML supported */
+// #define ESTIMATOR "ML"   /* MVE, MCD and ML supported */
 
 /* Error messages */
 
@@ -26,11 +28,11 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volu
                                Volume volume_seg, double* mean, 
                                double* var , double* pvmeasurement);
 
-int Estimate_ml( double * samples, long int nofsamples,
+int Estimate_ml( double * samples, long int nofsamples, int stencil,
                  double* mean, double* var );
-int Estimate_mve( double * samples, long int nofsamples,
+int Estimate_mve( double * samples, long int nofsamples, int stencil,
                   double* mean, double* var );
-int Estimate_mcd( double * samples, long int nofsamples,
+int Estimate_mcd( double * samples, long int nofsamples, int stencil,
                   double* mean, double* var );
 
 double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,

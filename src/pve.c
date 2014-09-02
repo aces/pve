@@ -401,7 +401,6 @@ int main(int argc, char** argv)
                                                              var[c] + var_measurement );
                   }
                 }
-
                 if (!sc_region) {
                   val[WMGMLABEL - 1] = Compute_marginalized_likelihood(value,mean[WMLABEL], mean[GMLABEL],
                                                                        var[WMLABEL], var[GMLABEL], 
@@ -421,6 +420,9 @@ int main(int argc, char** argv)
                                                                       var[GMLABEL], var[CSFLABEL], 
                                                                       var_measurement );
                 val[CSFBGLABEL - 1] = 0.0;  // don't allow BG inside mask
+                if( value < mean[CSFLABEL] ) {
+                  val[CSFLABEL-1] = 1.0;
+                }
 
                 if( Normalize(val,CLASSES) ) {
                   // All values are VERY_SMALL so pick something.
@@ -430,8 +432,8 @@ int main(int argc, char** argv)
                     Normalize(val,CLASSES);
                   } else {
                     val[CSFLABEL-1] = 1.0;
-                    printf( "Warning: Voxel (%d,%d,%d) out of range with value %g\n",
-                            i, j, k, value );
+                    // printf( "Warning: Voxel (%d,%d,%d) out of range with value %g\n",
+                    //         i, j, k, value );
                   }
                 }
 
@@ -580,12 +582,14 @@ int main(int argc, char** argv)
   if( classify ) {
     filename = strcpy(filename,argv[2]); 
 
-    Volume final_cls = copy_volume_definition(volume_in, NC_BYTE, TRUE, 0, 255); 
-    set_volume_real_range( final_cls, 0, 255);
+    int max_range = (use_subcort) ? PURE_CLASSES : PURE_CLASSES-1;
+
+    Volume final_cls = copy_volume_definition(volume_in, NC_BYTE, TRUE, 0, max_range); 
+    set_volume_real_range( final_cls, 0, max_range);
     Compute_final_classification(volume_in,volume_classified,final_cls,mean,var);
 
     output_modified_volume(strcat(filename,"_classify.mnc"),
-                           NC_BYTE, FALSE, 0, 255, final_cls, argv[1],
+                           NC_BYTE, FALSE, 0, max_range, final_cls, argv[1],
                            history, (minc_output_options *) NULL);
     delete_volume(final_cls);
   }

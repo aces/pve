@@ -8,7 +8,8 @@
 /* Jussi Tohka, jussi.tohka@cs.tut.fi 12th April 2002.  */
 
 #include "pve_support.h"
+#include "pve_common.h"
 
 extern int minvarellipsoid(elem_type data[], long int n, int trials, 
-			   elem_type* mean , elem_type* variance);
+			   int stencil, elem_type* mean , elem_type* variance);
  

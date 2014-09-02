@@ -137,9 +137,9 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volu
   int neighbourhood = NEIGHBOURHOOD;
   double slice_width[MAX_DIMENSIONS];
   get_volume_separations( volume_in, slice_width );
-  if( slice_width[0] < 0.75 && slice_width[1] < 0.75 && slice_width[2] < 0.75 ) {
-    neighbourhood = 125;
-  }
+//  if( slice_width[0] < 0.75 && slice_width[1] < 0.75 && slice_width[2] < 0.75 ) {
+//    neighbourhood = 125;
+//  }
   
   /* Then start parameter estimation */ 
 
@@ -157,12 +157,14 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volu
     }
     if(samples == NULL) return(4);
 
+    int stencil = ( c == CSFLABEL ) ? EST_ABOVE : EST_CENTERED;
+
     if(!strcmp(ESTIMATOR,"ML")) {
-      status = Estimate_ml( samples, nofsamples, &mean[c], &var[c] );
+      status = Estimate_ml( samples, nofsamples, stencil, &mean[c], &var[c] );
     } else if(!strcmp(ESTIMATOR,"MVE")) {
-      status = Estimate_mve( samples, nofsamples, &mean[c], &var[c] );
+      status = Estimate_mve( samples, nofsamples, stencil, &mean[c], &var[c] );
     } else {
-      status = Estimate_mcd( samples, nofsamples, &mean[c], &var[c] );
+      status = Estimate_mcd( samples, nofsamples, stencil, &mean[c], &var[c] );
     }
     free( samples );
     if( status ) return(4);
@@ -170,6 +172,7 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volu
   mean[BGLABEL] = 0;
   var[BGLABEL] = 0.1* MIN3(var[WMLABEL],var[GMLABEL],var[CSFLABEL]);
   *pvmeasurement = 0;
+  printf("Parameter estimation based on %ld samples:\n", nofsamples );
   printf("White matter mean: %f \n", mean[WMLABEL]);
   printf("Gray  matter mean: %f \n", mean[GMLABEL]);
   printf("CSF mean: %f \n", mean[CSFLABEL]);
@@ -185,7 +188,7 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volu
 
 /* ML estimation of means and variances. Returns 0 if successful. */
 
-int Estimate_ml( double * samples, long int nofsamples,
+int Estimate_ml( double * samples, long int nofsamples, int stencil,
                  double* mean, double* var ) { 
 
   long int i;  
@@ -197,18 +200,35 @@ int Estimate_ml( double * samples, long int nofsamples,
     *mean = *mean + samples[i];
   }
   *mean = *mean/nofsamples; 
-   for(i = 0;i < nofsamples;i++) {
-    *var = *var + pow(samples[i] - *mean,2);
+  long int count = 0;
+  if( stencil == EST_CENTERED ) {
+    for(i = 0;i < nofsamples;i++) {
+      *var = *var + pow(samples[i] - *mean,2);
+    }
+    count = nofsamples;
+  } else if( stencil == EST_BELOW ) {
+    for(i = 0;i < nofsamples;i++) {
+      if( samples[i] < *mean ) {
+        *var = *var + pow(samples[i] - *mean,2);
+        count++;
+      }
+    }
+  } else if( stencil == EST_ABOVE ) {
+    for(i = 0;i < nofsamples;i++) {
+      if( samples[i] > *mean ) {
+        *var = *var + pow(samples[i] - *mean,2);
+        count++;
+      }
+    }
   }
-   
-  *var = *var/nofsamples;
+  *var = *var/count;
 
   return(0);
 }
 
 /* Mve estimation of the means and variances. Returns 0 if successful. */
 
-int Estimate_mve( double * samples, long int nofsamples,
+int Estimate_mve( double * samples, long int nofsamples, int stencil,
                   double* mean,double* var) {
 
   int noftrials;
@@ -217,7 +237,7 @@ int Estimate_mve( double * samples, long int nofsamples,
   *var = 0.0;
 
   noftrials = MIN(2*nofsamples,MAXTRIALS);
-  if(minvarellipsoid(samples, nofsamples, noftrials,mean,var) != 0) {
+  if(minvarellipsoid(samples, nofsamples, noftrials, stencil, mean, var) != 0) {
     return(2);
   }
 
@@ -226,13 +246,13 @@ int Estimate_mve( double * samples, long int nofsamples,
 
 /* MCD estimation of the means and variances. Returns 0 if succesful. */
 
-int Estimate_mcd( double * samples, long int nofsamples,
-                 double* mean,double* var) {
+int Estimate_mcd( double * samples, long int nofsamples, int stencil,
+                  double* mean, double* var ) {
 
   *mean = 0.0;
   *var = 0.0;
 
-  if(least_trimmed_squares(samples, nofsamples, mean,var) != 0) {
+  if(least_trimmed_squares( samples, nofsamples, stencil, mean, var ) != 0) {
     return(2);
   }
 
@@ -355,7 +375,7 @@ double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,cha
     } 
     count = sampleno;
 
-#if 0
+#if 1
     /* Computers today are fast enough to handle all samples, so
        keep them all. This will have an effect if volume is a
        1mm or 0.5mm. CL. */

@@ -27,7 +27,7 @@
 #define LIKELIHOOD_RANGE_MAX 1.0
 
 #define MAXSAMPLES 200000
-#define MAXTRIALS 10000
+#define MAXTRIALS 1000
 #define NEIGHBOURHOOD 6     /* These are for image based parameter estimation */
 
 #define MEASUREMENT_FRACTION 0.5 /* if the model with both measurent noise and 
@@ -66,6 +66,10 @@
 #define SAME 1
 #define SMLR 2
 #define DIFF 3
+
+#define EST_BELOW 1
+#define EST_ABOVE 2
+#define EST_CENTERED 4
 
 /* Look up table for Potts model: Tells which classes are similar. Look at the macro 
    Are_similar to figure out how this works. */
