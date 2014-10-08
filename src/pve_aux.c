@@ -132,14 +132,8 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volu
   if(!((sizes[0] == sizes_seg[0]) && (sizes[1] == sizes_seg[1]) &&
       (sizes[2] == sizes_seg[2]))) return(3);
 
-  /* The default NEIGHBOURHOOD is good for 1mm voxels, but use 125
-     for 0.5mm voxels. */
+  /* Use the default NEIGHBOURHOOD for 0.5mm and 1mm voxels. */
   int neighbourhood = NEIGHBOURHOOD;
-  double slice_width[MAX_DIMENSIONS];
-  get_volume_separations( volume_in, slice_width );
-//  if( slice_width[0] < 0.75 && slice_width[1] < 0.75 && slice_width[2] < 0.75 ) {
-//    neighbourhood = 125;
-//  }
   
   /* Then start parameter estimation */ 
 
@@ -284,7 +278,6 @@ double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,cha
   get_volume_sizes( volume_in, sizes ); 
   voxel_value_interval = (get_volume_real_max(volume_in) - get_volume_real_min(volume_in))
                          /DATATYPE_SIZE;
-  srand(time(0)); /* Set seed */
   
   for(i = 2; i < sizes[0] - 2;i++) {
     for(j = 2;j < sizes[1] - 2;j++) {
@@ -386,6 +379,8 @@ double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,cha
     if( strcmp(ESTIMATOR,"MVE")==0 || strcmp(ESTIMATOR,"MCD")==0 ) {
 
       if( count > MAXSAMPLES ) {
+        // srand(time(0)); /* Set seed */
+        srand(123456); /* Set seed */
         sample_vector_tmp = Downsample_values( sample_vector, count, &sampleno );
         free( sample_vector );
         sample_vector = sample_vector_tmp;
@@ -418,7 +413,6 @@ double* Collect_values_subcortical( Volume volume_in, Volume volume_subcort, lon
 
   voxel_value_interval = (get_volume_real_max(volume_in) - get_volume_real_min(volume_in))
     /DATATYPE_SIZE;
-  srand(time(0)); /* Set seed */
   get_volume_sizes(volume_subcort,sizes);
 
   for(i = 1; i < sizes[0] - 1;i++) {
@@ -454,6 +448,8 @@ double* Collect_values_subcortical( Volume volume_in, Volume volume_subcort, lon
     if( strcmp(ESTIMATOR,"MVE")==0 || strcmp(ESTIMATOR,"MCD")==0 ) {
 
       if( count > MAXSAMPLES ) {
+        // srand(time(0)); /* Set seed */
+        srand(123456); /* Set seed */
         sample_vector_tmp = Downsample_values( sample_vector, count, &sampleno );
         free( sample_vector );
         sample_vector = sample_vector_tmp;

@@ -226,14 +226,9 @@ int Estimate_params_from_image3(Volume volume_inT1,Volume volume_inT2,Volume vol
   if(!((sizes[0] == sizes_seg[0]) && (sizes[1] == sizes_seg[1]) &&
       (sizes[2] == sizes_seg[2]))) return(3);
 
-  /* The default NEIGHBOURHOOD is good for 1mm voxels, but use 125
+  /* Use the default NEIGHBOURHOOD for 0.5mm and 1mm voxels. */
      for 0.5mm voxels. */
   int neighbourhood = NEIGHBOURHOOD;
-  double slice_width[MAX_DIMENSIONS];
-  get_volume_separations( volume_inT1, slice_width );
-  if( slice_width[0] < 0.75 && slice_width[1] < 0.75 && slice_width[2] < 0.75 ) {
-    neighbourhood = 125;
-  }
   
   /* Then start parameter estimation */ 
 
@@ -381,7 +376,8 @@ double* Collect_values3(Volume volume_inT1,Volume volume_inT2,Volume volume_inPD
                              get_volume_real_min(volume_inT2))/DATATYPE_SIZE;
   voxel_value_interval[2] = (get_volume_real_max(volume_inPD) - 
                              get_volume_real_min(volume_inPD))/DATATYPE_SIZE;
-  srand(time(0)); /* Set seed */
+  // srand(time(0)); /* Set seed */
+  srand(123456); /* Set seed */
 
   /* Special case to distinguish real CSF from background for t2 and pd.
      For t1, CSF and BG are usually lumped together. This is fine since 
@@ -582,7 +578,8 @@ double* Collect_values3_subcortical(Volume volume_inT1,Volume volume_inT2,
   voxel_value_interval[2] = (get_volume_real_max(volume_inPD) - 
                              get_volume_real_min(volume_inPD))/DATATYPE_SIZE;
 
-  srand(time(0)); /* Set seed */
+  // srand(time(0)); /* Set seed */
+  srand(123456); /* Set seed */
   get_volume_sizes(volume_subcort,sizes);
 
   for(i = 1; i < sizes[0] - 1;i++) {
