@@ -227,7 +227,6 @@ int Estimate_params_from_image3(Volume volume_inT1,Volume volume_inT2,Volume vol
       (sizes[2] == sizes_seg[2]))) return(3);
 
   /* Use the default NEIGHBOURHOOD for 0.5mm and 1mm voxels. */
-     for 0.5mm voxels. */
   int neighbourhood = NEIGHBOURHOOD;
   
   /* Then start parameter estimation */ 
