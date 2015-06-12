@@ -31,6 +31,7 @@ int minvarellipsoid(elem_type data[], long int n, int trials, int stencil,
   long int i, j;
   double sample_mean, median_scale1, median_scale2;
   double best_median_scale1, best_median_scale2;
+  double test_variance, minimum_variance;
 
   elem_type min_value = data[0];
   elem_type max_value = data[0];
@@ -40,8 +41,7 @@ int minvarellipsoid(elem_type data[], long int n, int trials, int stencil,
   }
   elem_type delta = ( max_value - min_value ) / (double)trials;
 
-  best_median_scale1 = VERY_LARGE;
-  best_median_scale2 = VERY_LARGE;
+  minimum_variance = VERY_LARGE;
   for(i = 0;i < trials;i++) {
    
     sample_mean = min_value + (double)i * delta;
@@ -53,24 +53,41 @@ int minvarellipsoid(elem_type data[], long int n, int trials, int stencil,
         median_scale1 += (data[j] - sample_mean) * (data[j] - sample_mean);
       }
       median_scale1 = sqrt( median_scale1 / n );
+      test_variance = median_scale1;
     } else {
-      int long count1 = 0, count2 = 0;
+
+      // Notes on Split Normal Distribution:
+      // https://en.wikipedia.org/wiki/Split_normal_distribution
+      // global mean = mu + sqrt(2/pi)*(scale2-scale1)
+      // global mode = mu
+      // global variance = (1-2/pi)*(scale2-scale1)**2 + scale1*scale2
+      // There is another way proposed in the above link to compute
+      // the one-sided variances median_scale1 and median_scale2
+      // based on maximum likelihood. 
+
       for(j = 0; j < n; j++) {   
-        if( data[j] <= sample_mean ) {
+        if( data[j] < sample_mean ) {
           median_scale1 += (data[j] - sample_mean) * (data[j] - sample_mean);
-          count1++;
         }
-        if( data[j] >= sample_mean ) {
+        if( data[j] > sample_mean ) {
           median_scale2 += (data[j] - sample_mean) * (data[j] - sample_mean);
-          count2++;
         }
       }
-      if( count1 > 0 ) median_scale1 = sqrt( median_scale1 / (double)count1 );
-      if( count2 > 0 ) median_scale2 = sqrt( median_scale2 / (double)count2 );
+
+      double term1 = pow( median_scale1, 1.0/3.0 );
+      double term2 = pow( median_scale2, 1.0/3.0 );
+      double term3 = sqrt( ( term1 + term2 ) / (double)n );
+
+      test_variance = term1 + term2;
+
+      median_scale1 = term1 * term3;
+      median_scale2 = term2 * term3;
+
     }
 
-    if(median_scale1+median_scale2 < best_median_scale1+best_median_scale2) {
+    if( test_variance < minimum_variance ) {
       *mean = sample_mean;
+      minimum_variance = test_variance;
       best_median_scale1 = median_scale1;
       best_median_scale2 = median_scale2;
     }

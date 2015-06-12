@@ -1,3 +1,17 @@
+New in release 1.4.3:
+        * pass custom sub-cortical mask to pve_script to allow
+          masking the sub-cortical regions, brainstem and cerebellum
+        * make the iterative correction to mean/variance work
+        * add 19-neighbour stencil for CSF pure class
+        * apply brain mask to pure class sampling only, but
+          classify full brain
+        * add subcortical model (gipt) for ICBM and ADNI
+        * extend new features to pve3 for t1,t2,pd classification
+        * do some bloody nasty optimizations in geo_smooth
+        * clip new values to global min/max in geo_smooth
+        * add option to pve_script to start from tags instead of a
+          classified image
+
 New in release 1.4.2:
 	* more extensions for processing at arbitrary voxel size (0.5mm, 1.0mm)
 	* changes to MCD and MVE calculation of the variance for CSF class to

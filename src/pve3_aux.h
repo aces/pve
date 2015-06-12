@@ -38,10 +38,12 @@ int Get_params_from_file3(char* fn, pVector means[PURE_CLASSES + 1],
 /* int Get_params_from_cl3(char** inputstr, double* pmwm, double* pmgm, double* pmcsf, 
                          double* pmbg, double* pvwm, double* pvgm, double* pvcsf , 
                          double* pvbg , double* pvmeasurement, double* pbeta); */
-int Estimate_params_from_image3(Volume volume_inT1, Volume volume_inT2, Volume volume_inPD, 
-				Volume volume_mask, Volume volume_subcort, 
-				Volume volume_seg, pVector means[PURE_CLASSES + 1],
-				pMatrix vars[PURE_CLASSES + 1] , pMatrix pvmeasurement);
+int Estimate_params_from_image3( Volume volume_inT1, Volume volume_inT2, 
+                                 Volume volume_inPD, Volume volume_mask, 
+                                 Volume volume_subcort, Volume volume_seg, 
+                                 pVector means[PURE_CLASSES + 1],
+				 pMatrix vars[PURE_CLASSES + 1], 
+                                 pMatrix pvmeasurement );
 
 int Estimate_ml3( double * samples, long int nofsamples,
                   pVector mean, pMatrix var);
@@ -49,20 +51,20 @@ int Estimate_ml3( double * samples, long int nofsamples,
 int Estimate_mve3( double * samples, long int nofsamples,
                    pVector mean,pMatrix var);
 
-double* Collect_values3(Volume volume_inT1,Volume volume_inT2,Volume volume_inPD,
-                        Volume volume_mask,Volume volume_seg,char ref_label,
-                        long int* pcount, int neighbourhood);
+double * Collect_values3( Volume volume_inT1, Volume volume_inT2,
+                          Volume volume_inPD, Volume volume_ngh,
+                          long int * pcount, char * estimator );
 
-double* Collect_values3_subcortical(Volume volume_inT1,Volume volume_inT2,Volume volume_inPD,
-				    Volume volume_subcort, long int* pcount);
+double* Collect_values3_subcortical( Volume volume_inT1, Volume volume_inT2,
+                                     Volume volume_inPD, Volume volume_subcort, 
+                                     Volume volume_seg, long int * pcount,
+                                     char * estimator );
 
 int Estimate_params_from_tags3(char* tag_filename,Volume volume_inT1, Volume volume_inT2, Volume volume_inPD,
                                  pMatrix means[PURE_CLASSES + 1], pMatrix vars[PURE_CLASSES + 1]);  
-int Open_images3(char* inT1_fn, char* inT2_fn, char* inPD_fn, 
-                 char* mask_fn, Volume* pvolume_inT1, 
-                 Volume* pvolume_inT2,Volume* pvolume_inPD,
-                 Volume* pvolume_mask);
 
+double solve3_ml( Vector3D value, Vector3D mean1, Vector3D mean2, Matrix3D var1,
+                  Matrix3D var2, pMatrix var_measurement );
 double Compute_Gaussian_likelihood3(pVector value, pVector mean , pMatrix var);
 double Compute_Gaussian_likelihood3_fast(pVector value, pVector mean, pMatrix invvar,
                                          double sq_det );
@@ -80,7 +82,8 @@ int Compute_final_classification3(Volume volume_inT1, Volume volume_inT2,
                                   Volume volume_inPD, Volume volume_classified,
                                   Volume final_cls,
                                   pVector means[PURE_CLASSES + 1], 
-                                  pMatrix vars[PURE_CLASSES + 1] );
+                                  pMatrix vars[PURE_CLASSES + 1],
+                                  pMatrix var_measurement );
 int Compute_partial_volume_vectors3(Volume volume_inT1, Volume volume_inT2, 
                                     Volume volume_inPD, Volume volume_classified,
                                     Volume volume_pve[PURE_CLASSES],

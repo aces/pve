@@ -113,17 +113,17 @@ int Get_params_from_file(char* fn, double* mean , double* var, double* pvmeasure
    NEIGHBOURHOOD , some voxels on the borders of tissue types may be exluded from
    estimation.  */
 
-int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volume_subcort,
+int Estimate_params_from_image(Volume volume_in, Volume volume_restrict, 
+                               Volume volume_subcort,
                                Volume volume_seg, double* mean,
-                               double* var, double* pvmeasurement) {
+                               double* var, double * pvmeasurement ) {
 
   int sizes[MAX_DIMENSIONS];
   int sizes_seg[MAX_DIMENSIONS];
+  double slice_width[MAX_DIMENSIONS];
   char c;
 
   int status;
-  double * samples = NULL;
-  long int nofsamples;
 
   if(get_volume_n_dimensions(volume_seg) != 3)
     return(2);
@@ -131,6 +131,7 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volu
   get_volume_sizes( volume_seg, sizes_seg );  
   if(!((sizes[0] == sizes_seg[0]) && (sizes[1] == sizes_seg[1]) &&
       (sizes[2] == sizes_seg[2]))) return(3);
+  get_volume_separations( volume_in, slice_width );
 
   /* Use the default NEIGHBOURHOOD for 0.5mm and 1mm voxels. */
   int neighbourhood = NEIGHBOURHOOD;
@@ -138,20 +139,51 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volu
   /* Then start parameter estimation */ 
 
   for(c = 1; c <= PURE_CLASSES; c++) {
-    samples = NULL;
+    double * samples = NULL;
+    long int nofsamples = 0;
+
+    /* For CSF, don't use 6 to avoid CSF voxels in burried sulci
+       that would increase the mean and variance. */
+    if( c == CSFLABEL ) {
+      neighbourhood = 19;
+    } else {
+      neighbourhood = NEIGHBOURHOOD;
+    }
+
+    Volume volume_ngh = copy_volume_definition( volume_seg, NC_BYTE, 
+                                                TRUE, 0 , 1);
+    set_volume_real_range( volume_ngh, 0, 1 );
     if ( c == SCLABEL ) {
       if( volume_subcort ) {
-        samples = Collect_values_subcortical(volume_in,volume_subcort,&nofsamples );
+        nofsamples = Collect_neighbourhood_subcortical( volume_ngh, 
+                                                        volume_restrict,
+                                                        volume_subcort,
+                                                        volume_seg,
+                                                        neighbourhood );
       } else {
         continue;
       }
     } else {
-      samples = Collect_values(volume_in,volume_mask,volume_seg,c,&nofsamples,
-                               neighbourhood);
+      nofsamples = Collect_neighbourhood( volume_ngh, volume_restrict,
+                                          volume_seg, c, neighbourhood );
     }
+    if( nofsamples > 0 ) {
+      samples = Collect_values( volume_in, volume_ngh, &nofsamples,
+                                (char*)ESTIMATOR );
+    }
+
+    delete_volume( volume_ngh );
     if(samples == NULL) return(4);
 
-    int stencil = ( c == CSFLABEL ) ? EST_ABOVE : EST_CENTERED;
+    // Some test to see if a skewed distribution is better for CSF.
+    // The initial distribution may be skewed, but after a number of
+    // iterations, the distribution becomes more and more symmetric.
+    // I think that the initial skew can be attributed to mixing of
+    // of tissue classes in classify clean. By using a non-centered
+    // model, we don't allow to correct the initial skewed 
+    // distribution, so enforce a symmetric distribution. CL.
+    // int stencil = ( c == CSFLABEL ) ? EST_ABOVE : EST_CENTERED;
+    int stencil = EST_CENTERED;
 
     if(!strcmp(ESTIMATOR,"ML")) {
       status = Estimate_ml( samples, nofsamples, stencil, &mean[c], &var[c] );
@@ -166,7 +198,6 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volu
   mean[BGLABEL] = 0;
   var[BGLABEL] = 0.1* MIN3(var[WMLABEL],var[GMLABEL],var[CSFLABEL]);
   *pvmeasurement = 0;
-  printf("Parameter estimation based on %ld samples:\n", nofsamples );
   printf("White matter mean: %f \n", mean[WMLABEL]);
   printf("Gray  matter mean: %f \n", mean[GMLABEL]);
   printf("CSF mean: %f \n", mean[CSFLABEL]);
@@ -177,6 +208,7 @@ int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volu
   printf("CSF variance: %f \n", var[CSFLABEL]);
   if (volume_subcort != NULL)
     printf("SC variance: %f \n", var[SCLABEL]);
+
   return(0);
 }
 
@@ -251,220 +283,6 @@ int Estimate_mcd( double * samples, long int nofsamples, int stencil,
   }
 
   return(0);
-}
-
-/* Function that collects intensity values for parameter estimation into one vector.
-   Returns the pointer to the vector where the samples are collected.
-   This function supports also MVE estimator */
-
-double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
-                long int* pcount, int neighbourhood ) {
-
-  int sizes[MAX_DIMENSIONS];
-  long int i;
-  int j,k,i1,j1,k1;
-  long int count = 0;
-  long int sampleno;
-  BOOLEAN on_the_border;
-  double *sample_vector_tmp;
-  double *sample_vector;
-  double voxel_value_interval;
-  Volume volume_tmp; /* volume for storing information about voxels status i.e. 
-                        is it to be included into the vector of intensity values from 
-                        which the parameters are to be estimated */
-
-  volume_tmp = copy_volume_definition(volume_in, NC_BYTE, TRUE, 0 , 1); 
-  set_volume_real_range( volume_tmp, 0,1 );
-  get_volume_sizes( volume_in, sizes ); 
-  voxel_value_interval = (get_volume_real_max(volume_in) - get_volume_real_min(volume_in))
-                         /DATATYPE_SIZE;
-  
-  for(i = 2; i < sizes[0] - 2;i++) {
-    for(j = 2;j < sizes[1] - 2;j++) {
-      for( k = 2; k < sizes[2] - 2;k++) {
-        set_volume_real_value(volume_tmp,i,j,k,0,0,0);
-        if(get_volume_real_value(volume_mask,i,j,k,0,0) > MASK_TR) {     /* Voxel in the brain */
-          if(rint(get_volume_real_value(volume_seg,i,j,k,0,0)) == ref_label) {  /* And of right type */
-            /* Check neigbourhood: Choices for neighbourhood are 6 and 26 neignbourhood or 
-               no neighbourhood checking. 
-               The choice is defined by the constant NEIGHBOURHOOD  */
-            on_the_border = FALSE;
-
-            if(neighbourhood == 125) { /* 125 - neighbourhood -- good for 0.5mm voxels */
-              for(i1 = -2;i1 <= 2;i1++) {
-                for(j1 = -2;j1 <= 2;j1++) {
-                  for(k1 = -2;k1 <= 2;k1++) {
-                    if(rint(get_volume_real_value(volume_seg,i + i1,j + j1,k + k1,0,0)) 
-                        != ref_label) {
-                      on_the_border = TRUE;
-                      break;
-                    }
-                  }
-                  if( on_the_border ) break;
-                }
-                if( on_the_border ) break;
-              }
-            } else if(neighbourhood == 26) { /* 26 - neighbourhood */
-              for(i1 = -1;i1 < 2;i1++) {
-                for(j1 = -1;j1 < 2;j1++) {
-                  for(k1 = -1;k1 < 2;k1++) {
-                    if(rint(get_volume_real_value(volume_seg,i + i1,j + j1,k + k1,0,0)) 
-                        != ref_label) {
-                      on_the_border = TRUE;
-                      break;
-                    }
-                  }
-                  if( on_the_border ) break;
-                }
-                if( on_the_border ) break;
-              }
-            } else if(neighbourhood == 6) { /* 6-neighbourhood */
-              for(i1 = -1;i1 < 2;i1++) {
-                if(rint(get_volume_real_value(volume_seg,i + i1,j,k,0,0)) 
-                        != ref_label) {
-                  on_the_border = TRUE;
-                  break;
-                }
-              }
-              for(i1 = -1;i1 < 2;i1++) {
-                if(rint(get_volume_real_value(volume_seg,i,j + i1,k,0,0)) 
-                        != ref_label) {
-                  on_the_border = TRUE;
-                  break;
-                }
-              }
-              for(i1 = -1;i1 < 2;i1++) {
-                if(rint(get_volume_real_value(volume_seg,i,j,k + i1,0,0)) 
-                        != ref_label) {
-                  on_the_border = TRUE;
-                  break;
-                }
-              }
-            }
-            if(!on_the_border) {
-              count = count + 1;
-              set_volume_real_value(volume_tmp,i,j,k,0,0,1);
-            }
-          }
-        }
-      }
-    }
-  }
-  
-  if(count > 0) {
-
-    sample_vector = malloc(count * sizeof (double));
-    if(sample_vector == NULL) return(NULL);
-    sampleno = 0;
-    for(i = 2; i < sizes[0] - 2; i++) {
-      for(j = 2; j < sizes[1] - 2; j++) {
-        for( k = 2; k < sizes[2] - 2; k++) {
-          if(get_volume_real_value(volume_tmp,i,j,k,0,0) > 0.5) {
-            sample_vector[sampleno] = get_volume_real_value(volume_in,i,j,k,0,0);
-            sampleno = sampleno + 1;
-          }
-        }
-      }
-    } 
-    count = sampleno;
-
-#if 1
-    /* Computers today are fast enough to handle all samples, so
-       keep them all. This will have an effect if volume is a
-       1mm or 0.5mm. CL. */
-
-    /* if we are using MVE or MCD estimator so 
-     1) we must get rid of some samples;
-     2) we must add little bit of noise to the other samples; */  
-    if( strcmp(ESTIMATOR,"MVE")==0 || strcmp(ESTIMATOR,"MCD")==0 ) {
-
-      if( count > MAXSAMPLES ) {
-        // srand(time(0)); /* Set seed */
-        srand(123456); /* Set seed */
-        sample_vector_tmp = Downsample_values( sample_vector, count, &sampleno );
-        free( sample_vector );
-        sample_vector = sample_vector_tmp;
-        count = sampleno;
-      }
-
-      // We don't want noise for real data, unless data come from a simulator. CL.
-      // AddNoise_values( sample_vector, count, voxel_value_interval );
-
-    }
-#endif
-  } else {
-    sample_vector = NULL;
-  }
-  delete_volume(volume_tmp);
-  *pcount = count;
-  return(sample_vector);
-}
-
-double* Collect_values_subcortical( Volume volume_in, Volume volume_subcort, long int* pcount ) {
-
-  int sizes[MAX_DIMENSIONS];
-  long int i;
-  int j,k;
-  long int count = 0;
-  long int sampleno;
-  double *sample_vector_tmp;
-  double *sample_vector;
-  double voxel_value_interval;
-
-  voxel_value_interval = (get_volume_real_max(volume_in) - get_volume_real_min(volume_in))
-    /DATATYPE_SIZE;
-  get_volume_sizes(volume_subcort,sizes);
-
-  for(i = 1; i < sizes[0] - 1;i++) {
-    for(j = 1;j < sizes[1] - 1;j++) {
-      for( k = 1; k < sizes[2] - 1;k++) {
-        if (get_volume_real_value(volume_subcort,i,j,k,0,0) > SC_TR )
-          count++;
-      }
-    }
-  }
-
-  if(count > 0) {
-
-    sample_vector = malloc(count * sizeof (double));
-    if(sample_vector == NULL) return(NULL);
-    sampleno = 0;
-    for(i = 1; i < sizes[0] - 1;i++) {
-      for(j = 1;j < sizes[1] - 1;j++) {
-        for( k = 1; k < sizes[2] - 1;k++) {
-          if(get_volume_real_value(volume_subcort,i,j,k,0,0) > SC_TR ) {
-            sample_vector[sampleno] = get_volume_real_value(volume_in,i,j,k,0,0);
-            sampleno = sampleno + 1;
-          }
-        }
-      }
-    } 
-    count = sampleno;
-
-    /* if we are using MVE or MCD estimator so 
-     1) we must get rid of some samples;
-     2) we must add little bit of noise to the other samples; */  
-
-    if( strcmp(ESTIMATOR,"MVE")==0 || strcmp(ESTIMATOR,"MCD")==0 ) {
-
-      if( count > MAXSAMPLES ) {
-        // srand(time(0)); /* Set seed */
-        srand(123456); /* Set seed */
-        sample_vector_tmp = Downsample_values( sample_vector, count, &sampleno );
-        free( sample_vector );
-        sample_vector = sample_vector_tmp;
-        count = sampleno;
-      }
-
-      AddNoise_values( sample_vector, count, voxel_value_interval );
-
-    }           
-  } else {
-    sample_vector = NULL;
-  }
-
-  *pcount = count;
-  return(sample_vector);
 }
 
 /* Get parameters based on a tag_file. */
@@ -550,6 +368,10 @@ int Estimate_params_from_tags(char* tag_filename,Volume volume_in,
    means[BGLABEL] = 0.0;  /* Set background mean  */
     /* Set background variance */
    vars[BGLABEL] = 0.1* MIN3(vars[WMLABEL],vars[GMLABEL],vars[CSFLABEL]);
+
+   /* just make SC=GM on the first iteration to avoid nan. */
+   means[SCLABEL] = means[GMLABEL];
+   vars[SCLABEL] = vars[GMLABEL];
       
    free_tag_points(n_tag_volumes, num_samples,
                   tags, NULL, NULL, NULL, NULL, labels );
@@ -557,32 +379,6 @@ int Estimate_params_from_tags(char* tag_filename,Volume volume_in,
 }
 
 /* ML estimation of means and variances. Returns 0 if successful. */
-
-
-/* -------------------------------------------------------------------- */
-/* Opens the input image and mask image. Returns 0 if ok.              */
-
-int Open_images(char* in_fn, char* mask_fn, Volume* pvolume_in, 
-                Volume* pvolume_mask)
-{
-  if(input_volume(in_fn,3,NULL,NC_UNSPECIFIED,FALSE,0.0, 0.0, 
-                 TRUE, pvolume_in, (minc_input_options *) NULL) != OK)
-    return(1);
-  if(input_volume(mask_fn,3,NULL,NC_BYTE,FALSE,0.0, 2.0, 
-                 TRUE, pvolume_mask, (minc_input_options *) NULL) != OK)
-    return(2);
-
-  /* Check that each image really has three dimensions */
-
-  if(get_volume_n_dimensions(*pvolume_in) != 3)
-    return(3);
-  if(get_volume_n_dimensions(*pvolume_mask) != 3)
-    return(4);
-
-  /* If we have got this far everything is ok. */
-
-  return(0);
-}
 
 /* -------------------------------------------------------------------
 Computes likelihood of value given parameters mean and variance. 
@@ -657,7 +453,7 @@ double Compute_marginalized_likelihood(double value, double mean1 , double mean2
    variances remain zero. Also parameters related to the background class are not updated.
 */
 
-void Parameter_estimation(Volume volume_in, Volume volume_mask, 
+void Parameter_estimation(Volume volume_in, Volume volume_restrict, 
                          Volume probabilities[CLASSES],double* mean, double* var,
                          double* var_measurement)
 {
@@ -669,8 +465,8 @@ void Parameter_estimation(Volume volume_in, Volume volume_mask,
   get_volume_sizes(volume_in,sizes);
  
   /* Print old parameters for the reference */
-  printf("Mean, WM: %f GM: %f CSF: %f \n",mean[WMLABEL],mean[GMLABEL],mean[CSFLABEL]);
-  printf("Variance, WM: %f GM: %f CSF: %f \n",var[WMLABEL],var[GMLABEL],var[CSFLABEL]);
+  printf("Mean, WM: %f GM: %f SC: %f CSF: %f \n",mean[WMLABEL],mean[GMLABEL],mean[SCLABEL],mean[CSFLABEL]);
+  printf("Variance, WM: %f GM: %f SC: %f CSF: %f \n",var[WMLABEL],var[GMLABEL],var[SCLABEL],var[CSFLABEL]);
   /* First re-estimate means */
  
   for(c = 1;c < PURE_CLASSES + 1;c++) {
@@ -679,11 +475,13 @@ void Parameter_estimation(Volume volume_in, Volume volume_mask,
     for( i = 0; i < sizes[0];i++) {
       for( j = 0;j < sizes[1];j++) {
         for( k = 0; k < sizes[2]; k++) {
-          if(get_volume_real_value(volume_mask,i,j,k,0,0) > MASK_TR) {
-            total_probability = total_probability + 
-                                get_volume_real_value(probabilities[c - 1],i,j,k,0,0);
-            mean[c] = mean[c] + get_volume_real_value(probabilities[c - 1],i,j,k,0,0)
-                              * get_volume_real_value(volume_in,i,j,k,0,0);
+          if( volume_restrict ) {
+            if( get_volume_real_value(volume_restrict,i,j,k,0,0) > MASK_TR ) {
+              total_probability = total_probability + 
+                                  get_volume_real_value(probabilities[c - 1],i,j,k,0,0);
+              mean[c] = mean[c] + get_volume_real_value(probabilities[c - 1],i,j,k,0,0)
+                                * get_volume_real_value(volume_in,i,j,k,0,0);
+            }
           }
         }
       }
@@ -691,7 +489,7 @@ void Parameter_estimation(Volume volume_in, Volume volume_mask,
     mean[c] = mean[c] / total_probability;
   }
 
-  printf("Mean, WM: %f GM: %f CSF: %f \n",mean[WMLABEL],mean[GMLABEL],mean[CSFLABEL]);
+  printf("Mean, WM: %f GM: %f SC: %f CSF: %f \n",mean[WMLABEL],mean[GMLABEL],mean[SCLABEL],mean[CSFLABEL]);
 
   /* Then re-estimate the variances.
      Case 1: If the model contains physiological noise components. */
@@ -703,11 +501,13 @@ void Parameter_estimation(Volume volume_in, Volume volume_mask,
       for( i = 0; i < sizes[0];i++) {
         for( j = 0;j < sizes[1];j++) {
           for( k = 0; k < sizes[2]; k++) {
-            if(get_volume_real_value(volume_mask,i,j,k,0,0) > MASK_TR) {
-              total_probability = total_probability + 
-                                get_volume_real_value(probabilities[c - 1],i,j,k,0,0);
-              var[c] = var[c] + get_volume_real_value(probabilities[c - 1],i,j,k,0,0)
-                              * pow(get_volume_real_value(volume_in,i,j,k,0,0) - mean[c],2);
+            if( volume_restrict ) {
+              if( get_volume_real_value(volume_restrict,i,j,k,0,0) > MASK_TR ) {
+                total_probability = total_probability + 
+                                    get_volume_real_value(probabilities[c - 1],i,j,k,0,0);
+                var[c] = var[c] + get_volume_real_value(probabilities[c - 1],i,j,k,0,0)
+                                * pow(get_volume_real_value(volume_in,i,j,k,0,0) - mean[c],2);
+              }
             }
           }
         }
@@ -723,7 +523,7 @@ void Parameter_estimation(Volume volume_in, Volume volume_mask,
         if(var[c] < 0) var[c] = 0; /* To ensure that variances are not negative */ 
       }
     }
-    printf("Variance, WM: %f GM: %f CSF: %f \n",var[WMLABEL],var[GMLABEL],var[CSFLABEL]);
+    printf("Variance, WM: %f GM: %f SC: %f CSF: %f \n",var[WMLABEL],var[GMLABEL],var[SCLABEL],var[CSFLABEL]);
   } else {    /* The model contains only measurement noise. We update only
                measurement variance.          */
     *var_measurement = 0;
@@ -732,12 +532,14 @@ void Parameter_estimation(Volume volume_in, Volume volume_mask,
       for( i = 0; i < sizes[0];i++) {
         for( j = 0;j < sizes[1];j++) {
           for( k = 0; k < sizes[2]; k++) {
-            if(get_volume_real_value(volume_mask,i,j,k,0,0) > MASK_TR) {
-              total_probability = total_probability + 
-                                get_volume_real_value(probabilities[c - 1],i,j,k,0,0);
-              *var_measurement = *var_measurement 
-                                 + get_volume_real_value(probabilities[c - 1],i,j,k,0,0)
-                                 * pow(get_volume_real_value(volume_in,i,j,k,0,0) - mean[c],2);  
+            if( volume_restrict ) {
+              if(get_volume_real_value(volume_restrict,i,j,k,0,0) > MASK_TR) {
+                total_probability = total_probability + 
+                                    get_volume_real_value(probabilities[c - 1],i,j,k,0,0);
+                *var_measurement = *var_measurement 
+                                   + get_volume_real_value(probabilities[c - 1],i,j,k,0,0)
+                                   * pow(get_volume_real_value(volume_in,i,j,k,0,0) - mean[c],2);  
+              }
             }
           }
         }
@@ -752,7 +554,7 @@ void Parameter_estimation(Volume volume_in, Volume volume_mask,
    the means and variances improves tissue classification.
 */
 
-int Parameter_estimation_classified(Volume volume_in, Volume volume_mask, 
+int Parameter_estimation_classified(Volume volume_in, Volume volume_restrict, 
                                     Volume volume_subcort, Volume classified,
                                     double * mean, double * var,
                                     double * var_measurement ) {
@@ -764,14 +566,21 @@ int Parameter_estimation_classified(Volume volume_in, Volume volume_mask,
   set_volume_real_range( pve_cls, 0, PURE_CLASSES );
 
   /* Compute new classification based on partial estimates (simplified model). */
-  Compute_final_classification( volume_in, classified, pve_cls, mean, var );
+  Compute_final_classification( volume_in, classified, pve_cls, mean, 
+                                var, *var_measurement );
  
   /* Print old parameters for the reference */
-  printf("Old Mean, WM: %f GM: %f CSF: %f\n",
-         mean[WMLABEL],mean[GMLABEL],mean[CSFLABEL]);
-  printf("Old Variance, WM: %f GM: %f CSF: %f\n",
-         var[WMLABEL],var[GMLABEL],var[CSFLABEL]);
-
+  if( volume_subcort ) {
+    printf("Old Mean, WM: %f GM: %f SC: %f CSF: %f \n",
+           mean[WMLABEL],mean[GMLABEL],mean[SCLABEL],mean[CSFLABEL]);
+    printf("Old Variance, WM: %f GM: %f SC: %f CSF: %f \n",
+           var[WMLABEL],var[GMLABEL],var[SCLABEL],var[CSFLABEL]);
+  } else {
+    printf("Old Mean, WM: %f GM: %f CSF: %f\n",
+           mean[WMLABEL],mean[GMLABEL],mean[CSFLABEL]);
+    printf("Old Variance, WM: %f GM: %f CSF: %f\n",
+           var[WMLABEL],var[GMLABEL],var[CSFLABEL]);
+  }
   double old_mean[PURE_CLASSES + 1]; /*   old nuisance parameters */
   double old_var[PURE_CLASSES + 1];
   for( c = 1; c <= PURE_CLASSES; c++ ) {
@@ -779,9 +588,17 @@ int Parameter_estimation_classified(Volume volume_in, Volume volume_mask,
     old_var[c] = var[c];
   }
 
-  Estimate_params_from_image( volume_in, volume_mask, volume_subcort,
+  Estimate_params_from_image( volume_in, volume_restrict, volume_subcort,
                               pve_cls, mean, var, var_measurement );
   delete_volume(pve_cls);
+
+  /* Use relaxation on the new estimated parameters. */
+
+  double relax = 0.5;
+  for( c = 1; c <= PURE_CLASSES; c++ ) {
+    mean[c] = ( 1.0 - relax ) * old_mean[c] + relax * mean[c];
+    var[c] = ( 1.0 - relax ) * old_var[c] + relax * var[c];
+  }
 
   /* Then start parameter estimation */ 
   int status;
@@ -792,10 +609,17 @@ int Parameter_estimation_classified(Volume volume_in, Volume volume_mask,
   var[BGLABEL] = 0.1* MIN3(var[WMLABEL],var[GMLABEL],var[CSFLABEL]);
   *var_measurement = 0;
 
-  printf("New Mean, WM: %f GM: %f CSF: %f\n",
-         mean[WMLABEL],mean[GMLABEL],mean[CSFLABEL]);
-  printf("New Variance, WM: %f GM: %f CSF: %f\n",
-         var[WMLABEL],var[GMLABEL],var[CSFLABEL]);
+  if( volume_subcort ) {
+    printf("New Mean, WM: %f GM: %f SC: %f CSF: %f \n",
+           mean[WMLABEL],mean[GMLABEL],mean[SCLABEL],mean[CSFLABEL]);
+    printf("New Variance, WM: %f GM: %f SC: %f CSF: %f \n",
+           var[WMLABEL],var[GMLABEL],var[SCLABEL],var[CSFLABEL]);
+  } else {
+    printf("New Mean, WM: %f GM: %f CSF: %f\n",
+           mean[WMLABEL],mean[GMLABEL],mean[CSFLABEL]);
+    printf("New Variance, WM: %f GM: %f CSF: %f\n",
+           var[WMLABEL],var[GMLABEL],var[CSFLABEL]);
+  }
 
   double err_mean = 0.0;
   double err_var = 0.0;
@@ -825,20 +649,22 @@ double Compute_mixed_class_thresh( double m1, double v1, double m2, double v2 ) 
 
 /* Compute a final classification of the pure classes based on the
    probabilistics maps (not the same as using the partial volume
-   vectors).
+   vectors). This is now based off Compute_partial_volume_vectors_ml.
  */
 
 int Compute_final_classification(Volume volume_in,Volume volume_classified,
                                  Volume final_cls, double* mean,
-                                 double * var) {
+                                 double * var, double var_measurement ) {
 
   int sizes[MAX_DIMENSIONS];
   int i,j,k;
   char c;
-  double val, t1, t2;
+  double val, t;
 
   get_volume_sizes(volume_in,sizes);
 
+#if 0
+  // probabilistic way
   double gmwm_thresh = Compute_mixed_class_thresh( mean[GMLABEL],var[GMLABEL],
                                                    mean[WMLABEL],var[WMLABEL] );
   double csfgm_thresh = Compute_mixed_class_thresh( mean[CSFLABEL],var[CSFLABEL],
@@ -847,6 +673,14 @@ int Compute_final_classification(Volume volume_in,Volume volume_classified,
                                                    mean[SCLABEL],var[SCLABEL] );
   double scwm_thresh = Compute_mixed_class_thresh( mean[SCLABEL],var[SCLABEL],
                                                    mean[WMLABEL],var[WMLABEL] );
+#else
+  // This is based off Compute_partial_volume_vectors.
+  // based on partial volume content (50% or more)
+  double gmwm_thresh = 0.5 * ( mean[GMLABEL] + mean[WMLABEL] );
+  double csfgm_thresh = 0.5 * ( mean[GMLABEL] + mean[CSFLABEL] );
+  double gmsc_thresh = 0.5 * ( mean[GMLABEL] + mean[SCLABEL] );
+  double scwm_thresh = 0.5 * ( mean[WMLABEL] + mean[SCLABEL] );
+#endif
 
   for( i = 0; i < sizes[0];i++) {
     for( j = 0;j < sizes[1];j++) {
@@ -871,10 +705,13 @@ int Compute_final_classification(Volume volume_in,Volume volume_classified,
              break;
         case WMGMLABEL: 
              val = get_volume_real_value(volume_in,i,j,k,0,0);
+#if 1
+             t = solve_ml( val, mean[WMLABEL], mean[GMLABEL], var[WMLABEL], 
+                           var[GMLABEL], var_measurement );
+             if( t <= 0.5 ) {
+#else
              if( val < gmwm_thresh ) {
-//           t1 = Compute_Gaussian_likelihood(val,mean[GMLABEL],var[GMLABEL]);
-//           t2 = Compute_Gaussian_likelihood(val,mean[WMLABEL],var[WMLABEL]);
-//           if( t1 >= t2 ) {
+#endif
                set_volume_real_value(final_cls,i,j,k,0,0,GMLABEL);
              } else {
                set_volume_real_value(final_cls,i,j,k,0,0,WMLABEL);
@@ -882,10 +719,13 @@ int Compute_final_classification(Volume volume_in,Volume volume_classified,
              break; 
         case GMCSFLABEL: 
              val = get_volume_real_value(volume_in,i,j,k,0,0);
+#if 1
+             t = solve_ml( val, mean[GMLABEL], mean[CSFLABEL], var[GMLABEL], 
+                           var[CSFLABEL], var_measurement );
+             if( t >= 0.5 ) {
+#else
              if( val > csfgm_thresh ) {
-//           t1 = Compute_Gaussian_likelihood(val,mean[GMLABEL],var[GMLABEL]);
-//           t2 = Compute_Gaussian_likelihood(val,mean[CSFLABEL],var[CSFLABEL]);
-//           if( t1 >= t2 ) {
+#endif
                set_volume_real_value(final_cls,i,j,k,0,0,GMLABEL);
              } else {
                set_volume_real_value(final_cls,i,j,k,0,0,CSFLABEL);
@@ -893,10 +733,13 @@ int Compute_final_classification(Volume volume_in,Volume volume_classified,
              break;
         case WMSCLABEL:
              val = get_volume_real_value(volume_in,i,j,k,0,0);
+#if 1
+             t = solve_ml( val, mean[WMLABEL], mean[SCLABEL], var[WMLABEL], 
+                           var[SCLABEL], var_measurement );
+             if( t >= 0.50 ) {
+#else
              if( val > scwm_thresh ) {
-//           t1 = Compute_Gaussian_likelihood(val,mean[WMLABEL],var[WMLABEL]);
-//           t2 = Compute_Gaussian_likelihood(val,mean[SCLABEL],var[SCLABEL]);
-//           if( t1 >= t2 ) {
+#endif
                set_volume_real_value(final_cls,i,j,k,0,0,WMLABEL);
              } else {
                set_volume_real_value(final_cls,i,j,k,0,0,SCLABEL);
@@ -904,10 +747,14 @@ int Compute_final_classification(Volume volume_in,Volume volume_classified,
              break;
         case SCGMLABEL:
              val = get_volume_real_value(volume_in,i,j,k,0,0);
-             // leave like this because not sure if GM < SC or GM > SC.
-             t1 = Compute_Gaussian_likelihood(val,mean[GMLABEL],var[GMLABEL]);
-             t2 = Compute_Gaussian_likelihood(val,mean[SCLABEL],var[SCLABEL]);
-             if( t1 >= t2 ) {
+#if 1
+             t = solve_ml( val, mean[SCLABEL], mean[GMLABEL], var[SCLABEL], 
+                           var[GMLABEL], var_measurement );
+             if( t <= 0.5 ) {
+#else
+             if( ( mean[GMLABEL] < mean[SCLABEL] && val < gmsc_thresh ) ||
+                 ( mean[GMLABEL] > mean[SCLABEL] && val > gmsc_thresh ) ) {
+#endif
                set_volume_real_value(final_cls,i,j,k,0,0,GMLABEL);
              } else {
                set_volume_real_value(final_cls,i,j,k,0,0,SCLABEL);
@@ -1032,8 +879,8 @@ int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
 }
 
 /* Little function to find the maximum likelihood of two classes.
-   Assume mean1 > mean2. This function has been optimized for speed
-   and uses only 30 function evaluations.
+   This function has been optimized for speed and uses only 30 
+   function evaluations.
  */
 
 double solve_ml( double value, double mean1, double mean2, double var1, double var2,

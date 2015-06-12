@@ -24,9 +24,10 @@
 
 void Display_help(); 
 int Get_params_from_file(char* fn, double* mean, double* var, double* pvmeasurement);
-int Estimate_params_from_image(Volume volume_in, Volume volume_mask, Volume volume_subcort,
-                               Volume volume_seg, double* mean, 
-                               double* var , double* pvmeasurement);
+int Estimate_params_from_image( Volume volume_in, Volume volume_mask,
+                                Volume volume_subcort,
+                                Volume volume_seg, double * mean, 
+                                double * var, double * pvmeasurement );
 
 int Estimate_ml( double * samples, long int nofsamples, int stencil,
                  double* mean, double* var );
@@ -34,10 +35,6 @@ int Estimate_mve( double * samples, long int nofsamples, int stencil,
                   double* mean, double* var );
 int Estimate_mcd( double * samples, long int nofsamples, int stencil,
                   double* mean, double* var );
-
-double* Collect_values(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,
-		       long int* pcount, int neighbourhood);
-double* Collect_values_subcortical(Volume volume_in,Volume volume_subcort, long int* pcount);
 
 /* double Estimate_mean(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label);
 double Estimate_variance(Volume volume_in,Volume volume_mask,Volume volume_seg,char ref_label,double mean);
@@ -47,9 +44,9 @@ int Estimate_params_from_tags(char* tag_filename,Volume volume_in,
 int Get_params_from_cl(char** inputstr, double* pmwm, double* pmgm, double* pmcsf, 
                          double* pmbg, double* pvwm, double* pvgm, double* pvcsf , 
                          double* pvbg , double* pvmeasurement); 
-int Open_images(char* in_fn, char* mask_fn, Volume* pvolume_in, 
-                Volume* pvolume_mask);
 
+double solve_ml( double value, double mean1, double mean2, double var1, double var2,
+                 double var_measurement );
 double Compute_Gaussian_likelihood(double value, double mean , double var);
 double Compute_Gaussian_log_likelihood(double value, double mean , double var);
 double Compute_marginalized_likelihood(double value, double mean1 , double mean2, 
@@ -62,7 +59,8 @@ int Parameter_estimation_classified(Volume volume_in, Volume volume_mask,
                                     Volume volume_subcort, Volume classified, 
                                     double* mean, double* var, double * var_measurement );
 int Compute_final_classification(Volume volume_in, Volume volume_classified,
-                                 Volume final_cls, double * mean, double * var);
+                                 Volume final_cls, double * mean, double * var,
+                                 double var_measurement );
 int Compute_partial_volume_vectors(Volume volume_in,Volume volume_classified,
                                    Volume volume_pve[PURE_CLASSES], double* mean);
 int Compute_partial_volume_vectors_ml(Volume volume_in, Volume volume_classified,

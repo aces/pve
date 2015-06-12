@@ -87,8 +87,12 @@ void Limit_0_1(double* x);
 int Normalize(double* pval, char n);
 char Maxarg(double* pval, char n);
 
+long int Collect_neighbourhood( Volume, Volume, Volume, char, int );
+double* Collect_values_subcortical( Volume, Volume, Volume, 
+                                    long int *, char * );
+double* Collect_values( Volume, Volume, long int *, char * );
 double * Downsample_values( double *, long int, long int * );
 void * AddNoise_values( double *, long int, double );
-void Compute_mrf_probability(double * mrf_prob, Volume* pvolume, int x, int y , int z,
+void Compute_mrf_probability(double * mrf_prob, Volume pvolume, int x, int y , int z,
                              double* width_stencil, double beta, double same, double similar,
                              double different, double prior, BOOLEAN sc_region );

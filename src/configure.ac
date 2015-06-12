@@ -3,10 +3,10 @@ dnl Process this file with autoconf to produce a configure script.
 AC_INIT
 AC_CONFIG_SRCDIR([pve.c])
 dnl AC_CONFIG_AUX_DIR(ac_config_aux)
-AM_INIT_AUTOMAKE(pve, 1.4.2)
+AM_INIT_AUTOMAKE(pve, 1.4.3)
 AM_CONFIG_HEADER([config.h])
 
-AC_REVISION($Revision$)
+AC_REVISION($Revision: 1.20 $)
 
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
